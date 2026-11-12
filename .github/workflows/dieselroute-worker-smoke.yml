@@ -16,14 +16,24 @@ jobs:
           python3 - <<'PY'
           import json,urllib.request,urllib.error
           base="https://dieselroute-price-worker.patrick-jung-0ba.workers.dev"
+          results = {}
           for path in ["/", "/health", "/api/stations/search?lat=52.52&lng=13.405&rad=5&fuel=diesel&limit=5"]:
               req=urllib.request.Request(base+path,headers={"Accept":"application/json","Origin":"https://docusmart-releases.github.io","User-Agent":"DieselRoute-smoketest"})
               try:
                   with urllib.request.urlopen(req,timeout=20) as res:
                       body=res.read(1400).decode("utf8","replace")
+                      results[path.split("?")[0]] = {"status":res.status, "cors":res.headers.get("access-control-allow-origin"), "body":body}
                       print("PATH:",path.split("?")[0],"STATUS:",res.status,"TYPE:",res.headers.get("content-type"),"CORS:",res.headers.get("access-control-allow-origin"),"BODY:",body[:700])
               except urllib.error.HTTPError as e:
                   body=e.read(1400).decode("utf8","replace")
+                  results[path.split("?")[0]] = {"status":e.code, "body":body}
                   print("PATH:",path.split("?")[0],"STATUS:",e.code,"TYPE:",e.headers.get("content-type"),"CORS:",e.headers.get("access-control-allow-origin"),"BODY:",body[:700])
               except Exception as e: print("ERROR",path,type(e).__name__,str(e))
+          health = results.get("/health",{})
+          stations=results.get("/api/stations/search",{})
+          if health.get("status")!=200 or stations.get("status")!=200 or health.get("cors")!="https://docusmart-releases.github.io" or stations.get("cors")!="https://docusmart-releases.github.io":
+              raise SystemExit("FAIL: Incorrect Worker deployment or API/CORS unavailable")
+          assert json.loads(health["body"]).get("ok") is True
+          assert isinstance(json.loads(stations["body"]).get("items"),list)
+          print("PASS: Worker health and live price API available")
           PY
