@@ -27,7 +27,8 @@ export default {
     const rad=Number(url.searchParams.get('rad'));
     const fuel=url.searchParams.get('fuel') || 'diesel';
     const limit=Number(url.searchParams.get('limit')||'100');
-    if(!Number.isFinite(lat)||Math.abs(lat)>90||!Number.isFinite(lng)||Math.abs(lng)>180||
+    if(!url.searchParams.has('lat')||!url.searchParams.has('lng')||!url.searchParams.has('rad')||
+       !Number.isFinite(lat)||Math.abs(lat)>90||!Number.isFinite(lng)||Math.abs(lng)>180||
        !Number.isFinite(rad)||rad<=0||rad>50||!['diesel','e5','e10'].includes(fuel)||
        !Number.isInteger(limit)||limit<1||limit>500){
       return json({error:'invalid_parameters'},400,cors);
