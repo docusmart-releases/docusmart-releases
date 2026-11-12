@@ -34,7 +34,7 @@ const num=(id,fallback)=>{const n=Number($(id).value);return Number.isFinite(n)?
 const km=(m)=>((m/1000).toFixed(1).replace('.',','))+' km';
 const euro=v=>Number(v).toLocaleString('de-DE',{minimumFractionDigits:3,maximumFractionDigits:3})+' €';
 const status=(html,bad=false)=>{const el=$('status');el.style.display='block';el.className='card'+(bad?' error':'');el.innerHTML=html};
-const coordText=p=>p[1]+','+p[0];
+const coordText=p=>p[0]+','+p[1];
 const rad=Math.PI/180;
 function hav(a,b){const dLat=(b[1]-a[1])*rad,dLon=(b[0]-a[0])*rad;const x=Math.sin(dLat/2)**2+Math.cos(a[1]*rad)*Math.cos(b[1]*rad)*Math.sin(dLon/2)**2;return 12742*Math.asin(Math.min(1,Math.sqrt(x)))}
 async function json(url,timeout=15000){const c=new AbortController();const t=setTimeout(()=>c.abort(),timeout);try{const r=await fetch(url,{signal:c.signal,headers:{Accept:'application/json'}});if(!r.ok)throw Error('HTTP '+r.status);return await r.json()}finally{clearTimeout(t)}}
