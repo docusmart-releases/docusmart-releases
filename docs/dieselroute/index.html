@@ -26,7 +26,7 @@
 <div id="progress" class="card"><strong id="progressText">Suche läuft</strong><div class="routebar"><b id="progressBar" style="width:0%"></b></div></div>
 <section id="results" class="card"><h2 id="heading">Ergebnisse</h2><div id="summary" class="metricline"></div><div id="notice" class="note"></div><div id="resultsList"></div><div id="moreArea" style="display:none;margin-top:14px;text-align:center"><button id="more" type="button" class="ghost">Weitere 5 anzeigen</button><p id="moreCount" class="subtle" aria-live="polite"></p></div></section>
 <section class="card"><h2>Wichtig zur Genauigkeit</h2><p class="subtle">Diese Testversion berechnet Routen und Umwege über öffentliche OpenStreetMap/OSRM-Dienste, nicht über Google Maps oder Live-Verkehrsdaten. Sie sucht schrittweise Tankstellen entlang deiner erreichbaren Strecke. Ergebnisse können unvollständig sein, wenn öffentliche Dienste begrenzen oder ausfallen. Prüfe vor der Abfahrt Preis, Öffnung und tatsächliche Fahrtzeit in der Navigation. Die Preisquelle wird nur für die Abfrage auf Nutzeraktion verwendet.</p><div class="warn">Sicherheit: Bitte während der Fahrt nicht bedienen. Nimm die Suche vor der Fahrt oder bei einem sicheren Halt vor.</div></section>
-</main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script><footer>DieselRoute · Testversion 0.5 · Routen: OpenStreetMap / OSRM / Nominatim · Preise: <a href="https://tankpuls.de" target="_blank" rel="noopener">MTS-K über tankerkoenig.de / TankPuls</a> (CC BY 4.0)</footer>
+</main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script><footer>DieselRoute · Testversion 0.6 · Routen: OpenStreetMap / OSRM / Nominatim · Preise: <a href="https://tankpuls.de" target="_blank" rel="noopener">MTS-K über tankerkoenig.de / TankPuls</a> (CC BY 4.0)</footer>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
@@ -115,6 +115,8 @@ function pickRoute(routes){
   })
 }
 let shownCount=5;
+let currentAlongKm=0;
+let latestGpsText='';
 let lastRenderArgs=null;
 $('more').addEventListener('click',()=>{
   if(!lastRenderArgs)return;
@@ -123,16 +125,16 @@ $('more').addEventListener('click',()=>{
 });
 function render(items,routeKm,limitKm,checked,errors,all,done){
 lastRenderArgs=[items,routeKm,limitKm,checked,errors,all,done];
-const accepted=items.filter(s=>s.checked&&s.extraMin<=num('detour',10)&&s.along+s.off*1.8<=limitKm).sort((a,b)=>a.priceCents-b.priceCents||a.along-b.along);
+const accepted=items.filter(s=>s.checked&&s.extraMin<=num('detour',10)&&s.along>=currentAlongKm-0.5&&s.along+s.off*1.8<=limitKm).sort((a,b)=>a.priceCents-b.priceCents||a.along-b.along);
 $('results').style.display='block';$('heading').textContent='Erreichbare Tankstellen · günstigste zuerst';
 $('summary').innerHTML='<span class="chip">Strecke: '+routeKm.toFixed(0)+' km</span><span class="chip">Suchbereich: '+limitKm.toFixed(0)+' km</span><span class="chip">'+accepted.length+' geprüft und passend</span><span class="chip">'+all+' gefunden</span>';
 $('notice').className=errors?'warn':'note';
-$('notice').textContent=(done?'Suche abgeschlossen. ':'Zwischenstand. ')+(errors?'Achtung: '+errors+' Preisabfrage(n) fehlgeschlagen; die Liste ist möglicherweise unvollständig. ':'')+(!checked?'Die exakte Umwegberechnung ist noch nicht abgeschlossen. ':'')+'Die Fahrzeiten sind OSRM-Schätzwerte ohne Verkehrslage, keine Garantie. Preise können sich ändern.';
+$('notice').textContent=(done?'Suche abgeschlossen. ':'Zwischenstand. ')+(errors?'Achtung: '+errors+' Preisabfrage(n) fehlgeschlagen; die Liste ist möglicherweise unvollständig. ':'')+(!checked?'Die exakte Umwegberechnung ist noch nicht abgeschlossen. ':'')+(latestGpsText?latestGpsText+' ':'')+'Die Fahrzeiten sind OSRM-Schätzwerte ohne Verkehrslage, keine Garantie. Preise können sich ändern.';
 if(!accepted.length){$('moreArea').style.display='none';$('resultsList').innerHTML='<p class="subtle">Noch keine Tankstellen mit bestätigtem Dieselpreis und passender geschätzter Umwegzeit gefunden. Eventuell etwas größere Umwegzeit wählen oder später erneut prüfen.</p>';return}
 $('moreArea').style.display=accepted.length>shownCount?'block':'none';
 $('moreCount').textContent='Gezeigt: '+Math.min(shownCount,accepted.length)+' von '+accepted.length+' passenden Tankstellen';
-$('resultsList').innerHTML=accepted.slice(0,shownCount).map((s,i)=>{const address=[s.street,s.postcode,s.city].filter(Boolean).join(', ');const nav='https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lng+'&travelmode=driving';return '<article class="station"><div><h3>'+((i===0)?'🏆 ':'')+esc(s.name||s.brandName||'Tankstelle')+'</h3><p>'+esc(address)+'</p><div class="metricline"><span class="chip">nach ca. '+s.along.toFixed(0)+' km</span><span class="chip">+'+s.extraMin.toFixed(1).replace('.',',')+' Min. Umweg</span><span class="chip">'+esc(s.status==='open'?'geöffnet':'Öffnung prüfen')+'</span></div><div class="result-buttons"><a href="'+nav+'" target="_blank" rel="noopener">In Google Maps öffnen</a></div></div><div class="price">'+euro(s.priceCents/1000)+'<p>Diesel / Liter</p></div></article>'}).join('')}
-$('search').addEventListener('click',async()=>{const btn=$('search');if(btn.disabled)return;btn.disabled=true;clearRouteSelection();shownCount=5;lastRenderArgs=null;$('moreArea').style.display='none';$('results').style.display='none';$('progress').style.display='none';try{
+$('resultsList').innerHTML=accepted.slice(0,shownCount).map((s,i)=>{const address=[s.street,s.postcode,s.city].filter(Boolean).join(', ');const nav='https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lng+'&travelmode=driving';return '<article class="station"><div><h3>'+((i===0)?'🏆 ':'')+esc(s.name||s.brandName||'Tankstelle')+'</h3><p>'+esc(address)+'</p><div class="metricline"><span class="chip">nach ca. '+Math.max(0,s.along-currentAlongKm).toFixed(0)+' km</span><span class="chip">+'+s.extraMin.toFixed(1).replace('.',',')+' Min. Umweg</span><span class="chip">'+esc(s.status==='open'?'geöffnet':'Öffnung prüfen')+'</span></div><div class="result-buttons"><a href="'+nav+'" target="_blank" rel="noopener">In Google Maps öffnen</a></div></div><div class="price">'+euro(s.priceCents/1000)+'<p>Diesel / Liter</p></div></article>'}).join('')}
+$('search').addEventListener('click',async()=>{const btn=$('search');if(btn.disabled)return;btn.disabled=true;clearRouteSelection();shownCount=5;currentAlongKm=0;latestGpsText='';lastRenderArgs=null;$('moreArea').style.display='none';$('results').style.display='none';$('progress').style.display='none';try{
 const start=$('start').value.trim(),end=$('end').value.trim(),via=$('via').value.trim(),useGps=$('useGps').checked;if(!end||(!useGps&&!start))throw Error('Bitte ein Ziel eingeben und GPS verwenden oder einen Startort eingeben.');
 if(!$('reach').value.trim())throw Error('Bitte zuerst die aktuelle Restreichweite laut Fahrzeuganzeige eingeben.');const reach=num('reach',NaN),reserve=num('reserve',30),detour=num('detour',10),radius=num('radius',8);
 if(!Number.isFinite(reach)||reach<10||reach>1800||reserve<0||reach<=reserve||detour<1||detour>60||radius<2||radius>15)throw Error('Bitte Reichweite, Reserve, Umweg und Suchkorridor sinnvoll einstellen.');
@@ -141,7 +143,41 @@ status('Route ab '+(useGps?'aktuellem GPS-Standort':'eingegebenem Startort')+' w
 const alternatives=await routeBetween(pts);status('Bitte erst die passende Straße aus den Routenalternativen auswählen.');const rr=await pickRoute(alternatives);const shape=rr.geometry.coordinates;let d=indexRoute(shape),total=d[d.length-1],limit=Math.min(total,reach-reserve);if(limit<=0)throw Error('Keine Reichweite nach Abzug der Reserve übrig.');
 showProgress(0,1,'Suche nach Dieselpreisen …');status('Suche ab '+(useGps?'aktuellem GPS-Standort':'eingegebenem Startort')+' bis '+limit.toFixed(0)+' km auf der Route (mit '+reserve+' km Reserve).');
 const stations=new Map();let fails=0,interval=Math.max(10,Math.min(18,radius*1.65));let samples=[];for(let k=0;k<=limit;k+=interval)samples.push(k);if(samples[samples.length-1]<limit-1)samples.push(limit);
-for(let i=0;i<samples.length;i++){let p=atDist(shape,d,samples[i]);try{let found=await getStations(p[1].toFixed(5),p[0].toFixed(5),Math.min(50,radius+2.5));for(const s of found){if(!s.id||s.priceCents==null||!Number.isFinite(Number(s.priceCents))||s.status!=='open')continue;const n=nearest([Number(s.lng),Number(s.lat)],shape,d);if(n.off>radius||n.along>limit)continue;const obj={...s,off:n.off,along:n.along,checked:false,extraMin:null};stations.set(s.id,obj)}}catch(e){fails++;}showProgress(i+1,samples.length,'Preisabfrage: Abschnitt '+(i+1)+' von '+samples.length)}
+// Die weitest entfernte Tankzone zuerst prüfen, dann die übrigen Abschnitte parallel.
+samples.sort((a,b)=>b-a);
+let completed=0;
+async function collectSample(distance){
+ const p=atDist(shape,d,distance);
+ const found=await getStations(p[1].toFixed(5),p[0].toFixed(5),Math.min(50,radius+2.5));
+ for(const s of found){
+  if(!s.id||s.priceCents==null||!Number.isFinite(Number(s.priceCents))||s.status!=='open')continue;
+  const n=nearest([Number(s.lng),Number(s.lat)],shape,d);
+  if(n.off>radius||n.along>limit)continue;
+  stations.set(s.id,{...s,off:n.off,along:n.along,checked:false,extraMin:null});
+ }
+}
+// Nur eine Testanfrage, wenn die Preisquelle generell nicht erreichbar ist.
+try{await collectSample(samples[0])}
+catch(e){throw Error('Preise derzeit nicht verfügbar. Die TankPuls-Preisquelle erlaubt keine direkten Zugriffe von DieselRoute im Browser; die öffentlichen Vermittlungsdienste antworten nicht. Die Route funktioniert. Für stabile Preise benötigen wir eine eigene serverseitige Abfrage.')}
+completed=1;showProgress(completed,samples.length,'Preisabfrage: Abschnitt '+completed+' von '+samples.length);
+for(let i=1;i<samples.length;i+=3){
+ await Promise.all(samples.slice(i,i+3).map(async distance=>{
+  try{await collectSample(distance)}catch(e){fails++}
+  completed++;showProgress(completed,samples.length,'Preisabfrage: '+completed+' von '+samples.length+' Abschnitten');
+ }));
+}
+// Standort bei Suchende erneut bestimmen, damit bereits passierte Tankstellen verschwinden.
+if(useGps){
+ try{
+  const fix=await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:false,maximumAge:0,timeout:5000}));
+  const progress=nearest([fix.coords.longitude,fix.coords.latitude],shape,d);
+  if(fix.coords.accuracy<=1500&&progress.off<=3&&progress.along<=total){
+   currentAlongKm=progress.along;
+   latestGpsText='GPS neu geprüft: ca. '+Math.round(currentAlongKm)+' km seit Suchbeginn entlang der Route. Bereits passierte Tankstellen sind ausgeblendet. Restreichweite im Auto bitte erneut prüfen.';
+   showGpsPosition(fix);
+  }else latestGpsText='GPS bei der Aktualisierung zu ungenau oder abseits der Route; die Entfernungen beziehen sich auf den Suchbeginn.';
+ }catch(e){latestGpsText='GPS konnte nicht erneut ermittelt werden; die Entfernungen beziehen sich auf den Suchbeginn.';}
+}
 let values=Array.from(stations.values()).sort((a,b)=>Number(a.priceCents)-Number(b.priceCents));if(!values.length){render([],total,limit,0,fails,0,true);if(fails)status('Preisdaten konnten nicht geladen werden. Die öffentlichen Vermittlungsdienste sind momentan nicht erreichbar. Routenberechnung hat funktioniert.',true);else status('Route berechnet, aber keine geöffneten Tankstellen mit Dieselpreis innerhalb des Suchkorridors gefunden.',true);return}
 status(values.length+' Stationen mit Dieselpreis gefunden. Straßenumweg wird ermittelt …');const batches=[];for(let i=0;i<values.length;i+=12)batches.push(values.slice(i,i+12));let ok=0,routeFails=0;for(let i=0;i<batches.length;i++){try{await evaluateBatch(batches[i],shape,d);ok+=batches[i].filter(s=>s.checked).length}catch(e){routeFails++}showProgress(i+1,batches.length,'Straßenumweg: Gruppe '+(i+1)+' von '+batches.length);render(values,total,limit,ok,fails+routeFails,values.length,false)}
 $('progress').style.display='none';render(values,total,limit,ok,fails+routeFails,values.length,true);status('Fertig: '+values.filter(s=>s.checked&&s.extraMin<=detour&&s.along+s.off*1.8<=limit).length+' Tankstellen entsprechen den eingestellten Kriterien.'+(fails+routeFails?' Einige Dienste waren nicht erreichbar.':''));}catch(e){status('Suche nicht möglich: '+esc(e.message||e),true);$('progress').style.display='none'}finally{btn.disabled=false}});
