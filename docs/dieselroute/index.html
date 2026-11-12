@@ -40,7 +40,32 @@ const coordText=p=>p[0]+','+p[1];
 const rad=Math.PI/180;
 function hav(a,b){const dLat=(b[1]-a[1])*rad,dLon=(b[0]-a[0])*rad;const x=Math.sin(dLat/2)**2+Math.cos(a[1]*rad)*Math.cos(b[1]*rad)*Math.sin(dLon/2)**2;return 12742*Math.asin(Math.min(1,Math.sqrt(x)))}
 async function json(url,timeout=15000){const c=new AbortController();const t=setTimeout(()=>c.abort(),timeout);try{const r=await fetch(url,{signal:c.signal,headers:{Accept:'application/json'}});if(!r.ok)throw Error('HTTP '+r.status);return await r.json()}finally{clearTimeout(t)}}
-$('extract').addEventListener('click',()=>{let s=$('mapsLink').value.trim();if(!s)return status('Bitte zuerst einen Google-Maps-Routenlink einfügen.',true);try{let u=new URL(s);let a=u.searchParams.get('origin'),b=u.searchParams.get('destination'),v=u.searchParams.get('waypoints');if(!a||!b){let parts=decodeURIComponent(u.pathname).split('/dir/')[1];if(parts){let p=parts.split('/').filter(Boolean).filter(z=>!z.startsWith('@'));a=p[0];b=p[1];v=p.length>2?p.slice(1,-1).join(', '):''}}if(a&&b){$('start').value=a;$('end').value=b;if(v)$('via').value=v;status('Start und Ziel wurden übernommen. Bitte kurz kontrollieren, ob Google Maps dieselben Orte meint.');}else status('Dieser Google-Maps-Link enthält keine lesbaren Start- und Zielorte. Bitte beide Orte direkt eingeben. Bei Kurzlinks kann der Browser die Weiterleitung nicht auslesen.',true)}catch(e){status('Bitte einen gültigen Google-Maps-Link oder Start und Ziel eingeben.',true)}});
+function isCurrentLocation(s){const v=String(s||'').toLowerCase().replace(/\\+/g,' ').trim();return ['current location','my location','your location','mein standort','aktueller standort'].includes(v)}
+$('extract').addEventListener('click',()=>{
+ const raw=$('mapsLink').value.trim();
+ if(!raw){status('Bitte zuerst einen Google-Maps-Routenlink einfügen.',true);return}
+ try{
+   const u=new URL(raw);const host=u.hostname.toLowerCase();
+   if(host==='maps.app.goo.gl'||host==='goo.gl'){status('Das ist ein Google-Maps-Kurzlink. Seine Weiterleitung kann DieselRoute im Browser nicht zuverlässig auslesen. Bitte den Link in einem Browser öffnen und die vollständige Google-Maps-Adresse kopieren oder Start und Ziel direkt eintragen.',true);return}
+   if(host.indexOf('google.')===-1){status('Bitte einen Google-Maps-Routenlink einfügen.',true);return}
+   let a=u.searchParams.get('origin')||u.searchParams.get('saddr')||'';
+   let b=u.searchParams.get('destination')||u.searchParams.get('daddr')||'';
+   let v=u.searchParams.get('waypoints')||'';
+   const pathname=decodeURIComponent(u.pathname).replace(/\\+/g,' ');
+   const ix=pathname.indexOf('/dir/');
+   if(ix>=0){
+     const pieces=pathname.substring(ix+5).split('/').filter(z=>z && z[0]!=='@' && !z.startsWith('data=') && z[0]!=='!');
+     if(pieces.length>=2){
+       a=a||pieces[0];b=b||pieces[pieces.length-1];
+       if(!v&&pieces.length>2)v=pieces.slice(1,-1).join(', ');
+     }
+   }
+   if(!b){status('Dieser Google-Maps-Link enthält keinen auslesbaren Zielort. Bitte Start und Ziel von Hand eintragen oder eine vollständige Google-Maps-Routenadresse verwenden.',true);return}
+   if(a&&!isCurrentLocation(a))$('start').value=a;
+   $('end').value=b;if(v)$('via').value=v;
+   status('Ziel aus dem Link übernommen'+(a&&!isCurrentLocation(a)?' und Start ebenfalls':'; der Start kommt bei aktiviertem GPS vom aktuellen Standort')+'. Kontrolliere die Orte und wähle anschließend deine Fahrstrecke auf der Karte. Ein Google-Link überträgt die exakt ausgewählte Alternativroute noch nicht.');
+ }catch(e){status('Der eingefügte Link ist nicht lesbar. Bitte eine vollständige Google-Maps-Adresse oder Start und Ziel eingeben.',true)}
+});
 function gpsError(e){
  if(e && e.code===1)return new Error('Der Browser meldet, dass Standortzugriff blockiert ist, obwohl du vielleicht schon „Erlauben“ gewählt hast. Prüfe unter Android die Standort-Berechtigung des Browsers und der Webseite.');
  if(e && e.code===3)return new Error('Der Browser konnte den GPS-Standort nicht rechtzeitig ermitteln. Versuche es im Freien oder wähle „Startort manuell eingeben“.');
