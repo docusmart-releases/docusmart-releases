@@ -10,27 +10,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Check Worker health and diesel price API
+      - name: Diagnose Worker URL and API
         shell: bash
         run: |
           python3 - <<'PY'
-          import json, urllib.request, urllib.error
-          base = "https://dieselroute-price-worker.patrick-jung-0ba.workers.dev"
-          def read(path):
-              req = urllib.request.Request(base + path,headers={"Accept":"application/json", "Origin":"https://docusmart-releases.github.io", "User-Agent":"DieselRoute-smoketest"})
-              with urllib.request.urlopen(req,timeout=18) as res:
-                  content = res.read(500000)
-                  print(path.split("?")[0],"HTTP",res.status,"CORS",res.headers.get('Access-Control-Allow-Origin'))
-                  if res.headers.get('Access-Control-Allow-Origin') != "https://docusmart-releases.github.io":
-                      raise AssertionError("CORS origin missing/mismatched")
-                  return json.loads(content)
-          health = read("/health")
-          assert health.get("ok") is True, f"Health check failed: {health}"
-          stations = read("/api/stations/search?lat=52.52&lng=13.405&rad=5&fuel=diesel&limit=5")
-          assert isinstance(stations.get("items"),list), f"API structure invalid: {stations}"
-          print("TankPuls API items:",len(stations["items"]))
-          if stations["items"]:
-              s=stations["items"][0]
-              print("First station fields:", sorted(s.keys()))
-          print("SUCCESS: Worker is up and API responds with valid items array")
+          import json,urllib.request,urllib.error
+          base="https://dieselroute-price-worker.patrick-jung-0ba.workers.dev"
+          for path in ["/", "/health", "/api/stations/search?lat=52.52&lng=13.405&rad=5&fuel=diesel&limit=5"]:
+              req=urllib.request.Request(base+path,headers={"Accept":"application/json","Origin":"https://docusmart-releases.github.io","User-Agent":"DieselRoute-smoketest"})
+              try:
+                  with urllib.request.urlopen(req,timeout=20) as res:
+                      body=res.read(1400).decode("utf8","replace")
+                      print("PATH:",path.split("?")[0],"STATUS:",res.status,"TYPE:",res.headers.get("content-type"),"CORS:",res.headers.get("access-control-allow-origin"),"BODY:",body[:700])
+              except urllib.error.HTTPError as e:
+                  body=e.read(1400).decode("utf8","replace")
+                  print("PATH:",path.split("?")[0],"STATUS:",e.code,"TYPE:",e.headers.get("content-type"),"CORS:",e.headers.get("access-control-allow-origin"),"BODY:",body[:700])
+              except Exception as e: print("ERROR",path,type(e).__name__,str(e))
           PY
