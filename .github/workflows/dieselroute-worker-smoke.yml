@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/dieselroute-worker-smoke.yml'
+      - 'dieselroute-price-worker/**'
   workflow_dispatch:
 jobs:
   smoke:
