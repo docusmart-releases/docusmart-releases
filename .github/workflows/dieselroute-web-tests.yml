@@ -68,7 +68,8 @@ jobs:
           short='https://maps.app.goo.gl/nQYgTaAfqsCMreWc8'
           try:
               expanded=call('/api/maps/resolve?url='+urllib.parse.quote(short,safe=''))
-              print('Public Maps shortlink: expanded to host',urllib.parse.urlparse(expanded['url']).hostname)
+              parsed=urllib.parse.urlparse(expanded['url'])
+              print('Public Maps shortlink: host',parsed.hostname,'route_path',('/dir/' in parsed.path),'place_path',('/place/' in parsed.path),'query_keys',sorted(urllib.parse.parse_qs(parsed.query).keys()))
           except Exception as exc:
               print('Public Maps shortlink: unresolved',type(exc).__name__,str(exc)[:90])
 
