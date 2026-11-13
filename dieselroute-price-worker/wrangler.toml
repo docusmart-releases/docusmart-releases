@@ -1,4 +1,4 @@
-name = "dieselroute-prices"
+name = "dieselroute-price-worker"
 main = "src/index.js"
 compatibility_date = "2026-11-12"
 workers_dev = true
