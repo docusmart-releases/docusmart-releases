@@ -26,7 +26,7 @@
 <div id="progress" class="card"><strong id="progressText">Suche läuft</strong><div class="routebar"><b id="progressBar" style="width:0%"></b></div></div>
 <section id="results" class="card"><h2 id="heading">Ergebnisse</h2><div id="summary" class="metricline"></div><div id="notice" class="note"></div><div id="resultsList"></div><div id="moreArea" style="display:none;margin-top:14px;text-align:center"><button id="more" type="button" class="ghost">Weitere 5 anzeigen</button><p id="moreCount" class="subtle" aria-live="polite"></p></div></section>
 <section class="card"><h2>Wichtig zur Genauigkeit</h2><p class="subtle">Diese Testversion berechnet Routen und Umwege über öffentliche OpenStreetMap/OSRM-Dienste, nicht über Google Maps oder Live-Verkehrsdaten. Sie sucht schrittweise Tankstellen entlang deiner erreichbaren Strecke. Ergebnisse können unvollständig sein, wenn öffentliche Dienste begrenzen oder ausfallen. Prüfe vor der Abfahrt Preis, Öffnung und tatsächliche Fahrtzeit in der Navigation. Die Preisquelle wird nur für die Abfrage auf Nutzeraktion verwendet.</p><div class="warn">Sicherheit: Bitte während der Fahrt nicht bedienen. Nimm die Suche vor der Fahrt oder bei einem sicheren Halt vor.</div></section>
-</main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script><footer>DieselRoute · Testversion 0.10 · Routen: OpenStreetMap / OSRM / Nominatim · Preise: <a href="https://tankpuls.de" target="_blank" rel="noopener">MTS-K über tankerkoenig.de / TankPuls</a> (CC BY 4.0)</footer>
+</main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script><footer>DieselRoute · Testversion 0.10.1 · Routen: OpenStreetMap / OSRM / Nominatim · Preise: <a href="https://tankpuls.de" target="_blank" rel="noopener">MTS-K über tankerkoenig.de / TankPuls</a> (CC BY 4.0)</footer>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
@@ -50,6 +50,7 @@ function cleanMapsPart(value){return decodeURIComponent(String(value||'').replac
 
 let unverifiedImportedDestination='';
 let verifiedImportedDestination=null;
+let importedMapsTarget=false;
 const COORD_RE=/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/;
 function streetOnlyDestination(value){
   const s=String(value||'').trim();
@@ -76,8 +77,11 @@ function matchesResolvedDestination(query,hit){
       if(locality && !display.includes(locality))return false;
     }
   }else if(placeParts.length>=2){
-    const locality=normalizePlace(placeParts[placeParts.length-1]);
-    if(locality && !display.includes(locality))return false;
+    // Stadt und Region prüfen, nicht nur den letzten Bestandteil (etwa ein Bundesland).
+    for(const part of placeParts.slice(1)){
+      const locality=normalizePlace(part);
+      if(locality && !display.includes(locality))return false;
+    }
   }else if(!placeParts.length)return false;
   return true;
 }
@@ -137,6 +141,7 @@ async function importSharedLink(){
       u=new URL(response.url);
     }
     const route=parseMapsDirections(u.toString());
+    importedMapsTarget=true;
     $('end').value=route.end;
     $('via').value=route.via||'';
     verifiedImportedDestination=null;
@@ -256,7 +261,18 @@ if(unverifiedImportedDestination && end===unverifiedImportedDestination)throw Er
 if(!$('reach').value.trim())throw Error('Bitte zuerst die aktuelle Restreichweite laut Fahrzeuganzeige eingeben.');const reach=num('reach',NaN),reserve=num('reserve',30),detour=num('detour',10),radius=num('radius',8);
 if(!Number.isFinite(reach)||reach<10||reach>1800||reserve<0||reach<=reserve||detour<1||detour>60||radius<2||radius>15)throw Error('Bitte Reichweite, Reserve, Umweg und Suchkorridor sinnvoll einstellen.');
 let first;if(useGps){status('Aktuellen Standort für die Restreichweite bestimmen …');const fix=await freshGps();showGpsPosition(fix);if(fix.coords.accuracy>5000)throw Error('GPS ist zu ungenau (über 5 km). Bitte präzisere Ortung aktivieren oder einen manuellen Startort verwenden.');first=[fix.coords.longitude,fix.coords.latitude]}else{status('Startort ermitteln …');first=await geocode(start)}
-status('Route ab '+(useGps?'aktuellem GPS-Standort':'eingegebenem Startort')+' wird berechnet …');let pts=[first];if(via){for(const stop of via.split('|').map(x=>x.trim()).filter(Boolean).slice(0,8)){await wait(1100);pts.push(await geocode(stop))}}await wait(1100);pts.push(verifiedImportedDestination&&end===verifiedImportedDestination.text?verifiedImportedDestination.point:await geocode(end));
+status('Route ab '+(useGps?'aktuellem GPS-Standort':'eingegebenem Startort')+' wird berechnet …');let pts=[first];if(via){for(const stop of via.split('|').map(x=>x.trim()).filter(Boolean).slice(0,8)){await wait(1100);pts.push(await geocode(stop))}}await wait(1100);
+let targetPoint;
+if(verifiedImportedDestination&&end===verifiedImportedDestination.text){
+ targetPoint=verifiedImportedDestination.point;
+}else if(importedMapsTarget){
+ const verified=await verifyImportedDestination(end);
+ targetPoint=verified.point;
+ verifiedImportedDestination={text:end,point:verified.point};
+ unverifiedImportedDestination='';
+ status('Ziel geprüft: '+esc(verified.label)+' · Berechne die Strecke …');
+}else{targetPoint=await geocode(end)}
+pts.push(targetPoint);
 const alternatives=await routeBetween(pts);status('Bitte erst die passende Straße aus den Routenalternativen auswählen.');const rr=await pickRoute(alternatives);const shape=rr.geometry.coordinates;let d=indexRoute(shape),total=d[d.length-1],limit=Math.min(total,reach-reserve);if(limit<=0)throw Error('Keine Reichweite nach Abzug der Reserve übrig.');
 showProgress(0,1,'Suche nach Dieselpreisen …');status('Suche ab '+(useGps?'aktuellem GPS-Standort':'eingegebenem Startort')+' bis '+limit.toFixed(0)+' km auf der Route (mit '+reserve+' km Reserve).');
 const stations=new Map();let fails=0,interval=Math.max(10,Math.min(18,radius*1.65));let samples=[];for(let k=0;k<=limit;k+=interval)samples.push(k);if(samples[samples.length-1]<limit-1)samples.push(limit);
