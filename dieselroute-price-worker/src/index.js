@@ -1,3 +1,4 @@
+// Deployment-Trigger nach Korrektur des Cloudflare-Stammverzeichnisses.
 // DieselRoute: serverseitiger Live-Preis-Proxy zur TankPuls REST-API.
 // Keine API-Schlüssel erforderlich für anonyme Nutzung (Rate-Limits beachten).
 const ALLOWED_ORIGIN = 'https://docusmart-releases.github.io';
