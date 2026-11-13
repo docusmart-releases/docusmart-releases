@@ -54,7 +54,7 @@ jobs:
           import json,urllib.request,urllib.parse
           base='https://dieselroute-price-worker.patrick-jung-0ba.workers.dev'
           def call(path):
-              req=urllib.request.Request(base+path,headers={'Origin':'https://docusmart-releases.github.io','Accept':'application/json'})
+              req=urllib.request.Request(base+path,headers={'Origin':'https://docusmart-releases.github.io','Accept':'application/json','User-Agent':'DieselRoute-smoketest'})
               with urllib.request.urlopen(req,timeout=18) as r:
                   assert r.status==200
                   assert r.headers.get('Access-Control-Allow-Origin')=='https://docusmart-releases.github.io'
