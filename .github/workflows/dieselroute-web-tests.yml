@@ -47,6 +47,24 @@ jobs:
           assert.equal(ctx.extractUrlFromText('Route teilen: https://maps.app.goo.gl/abc123'),'https://maps.app.goo.gl/abc123');
           console.log('Parser test PASSED');
           JS
+      - name: Verify published DieselRoute share target files
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,json
+          base='https://docusmart-releases.github.io/docusmart-releases/dieselroute/'
+          for path in ['?v=0.9','manifest.webmanifest','sw.js','icon.svg']:
+              req=urllib.request.Request(base+path,headers={'User-Agent':'Mozilla/5.0 DieselRoute-webtest'})
+              with urllib.request.urlopen(req,timeout=18) as res:
+                  assert res.status==200
+                  data=res.read(150000).decode('utf-8')
+                  print('Page asset:',path,'HTTP',res.status,'bytes',len(data))
+                  if path=='?v=0.9': assert 'Testversion 0.9' in data and 'acceptSharedGoogleMapsLink' in data
+                  if path=='manifest.webmanifest':
+                      m=json.loads(data)
+                      assert m['share_target']['params']['url']=='url'
+                      assert m['scope']=='./'
+          PY
       - name: Verify live Worker routes (read-only)
         shell: bash
         run: |
