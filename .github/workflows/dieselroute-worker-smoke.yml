@@ -22,9 +22,9 @@ jobs:
               req=urllib.request.Request(base+path,headers={"Accept":"application/json","Origin":"https://docusmart-releases.github.io","User-Agent":"DieselRoute-smoketest"})
               try:
                   with urllib.request.urlopen(req,timeout=20) as res:
-                      body=res.read(1400).decode("utf8","replace")
+                      body=res.read(500000).decode("utf8","replace")
                       results[path.split("?")[0]] = {"status":res.status, "cors":res.headers.get("access-control-allow-origin"), "body":body}
-                      print("PATH:",path.split("?")[0],"STATUS:",res.status,"TYPE:",res.headers.get("content-type"),"CORS:",res.headers.get("access-control-allow-origin"),"BODY:",body[:700])
+                      print("PATH:",path.split("?")[0],"STATUS:",res.status,"TYPE:",res.headers.get("content-type"),"CORS:",res.headers.get("access-control-allow-origin"),"BODY:",body[:350])
               except urllib.error.HTTPError as e:
                   body=e.read(1400).decode("utf8","replace")
                   results[path.split("?")[0]] = {"status":e.code, "body":body}
