@@ -64,4 +64,12 @@ jobs:
           result=call('/api/maps/resolve?url='+urllib.parse.quote(target,safe=''))
           assert result['url'].startswith('https://www.google.com/maps/dir/')
           print('Maps endpoint OK')
+          # Publicly posted Google Maps shortlink; only log status/host, never the route or coordinates.
+          short='https://maps.app.goo.gl/nQYgTaAfqsCMreWc8'
+          try:
+              expanded=call('/api/maps/resolve?url='+urllib.parse.quote(short,safe=''))
+              print('Public Maps shortlink: expanded to host',urllib.parse.urlparse(expanded['url']).hostname)
+          except Exception as exc:
+              print('Public Maps shortlink: unresolved',type(exc).__name__,str(exc)[:90])
+
           PY
