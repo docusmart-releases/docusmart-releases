@@ -1,0 +1,67 @@
+name: DieselRoute Web Import and Worker Tests
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/dieselroute/**'
+      - 'dieselroute-price-worker/**'
+      - '.github/workflows/dieselroute-web-tests.yml'
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate frontend JavaScript, manifest, Worker and Maps parser
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,pathlib
+          html=pathlib.Path('docs/dieselroute/index.html').read_text()
+          assert html.count('<script>')==1, 'Expected one inline JavaScript block'
+          code=html.split('<script>',1)[1].split('</script>',1)[0]
+          pathlib.Path('/tmp/dieselroute-web.js').write_text(code)
+          json.loads(pathlib.Path('docs/dieselroute/manifest.webmanifest').read_text())
+          print('Manifest parsed, inline script extracted')
+          PY
+          cp dieselroute-price-worker/src/index.js /tmp/dieselroute-worker.mjs
+          node --check /tmp/dieselroute-web.js
+          node --check /tmp/dieselroute-worker.mjs
+          node --check docs/dieselroute/sw.js
+          node - <<'JS'
+          const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
+          const s=fs.readFileSync('/tmp/dieselroute-web.js','utf8');
+          const block=s.slice(s.indexOf('function extractUrlFromText('),s.indexOf('async function importSharedLink()'));
+          const ctx={URL,URLSearchParams,decodeURIComponent,Error};
+          vm.runInNewContext(block,ctx);
+          let a=ctx.parseMapsDirections('https://www.google.com/maps/dir/?api=1&origin=Berlin%2CGermany&destination=Hamburg%2CGermany&waypoints=Hannover%7CBremen');
+          assert.equal(a.end,'Hamburg,Germany');
+          assert.equal(a.via,'Hannover | Bremen');
+          a=ctx.parseMapsDirections('https://www.google.com/maps/dir/Berlin/Hannover/Hamburg/');
+          assert.equal(a.end,'Hamburg');
+          assert.equal(a.start,'Berlin');
+          assert.equal(a.via,'Hannover');
+          a=ctx.parseMapsDirections('https://www.google.com/maps/dir/?api=1&destination=Verden');
+          assert.equal(a.end,'Verden');
+          assert.equal(ctx.extractUrlFromText('Route teilen: https://maps.app.goo.gl/abc123'),'https://maps.app.goo.gl/abc123');
+          console.log('Parser test PASSED');
+          JS
+      - name: Verify live Worker routes (read-only)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request,urllib.parse
+          base='https://dieselroute-price-worker.patrick-jung-0ba.workers.dev'
+          def call(path):
+              req=urllib.request.Request(base+path,headers={'Origin':'https://docusmart-releases.github.io','Accept':'application/json'})
+              with urllib.request.urlopen(req,timeout=18) as r:
+                  assert r.status==200
+                  assert r.headers.get('Access-Control-Allow-Origin')=='https://docusmart-releases.github.io'
+                  return json.load(r)
+          print('Health:',call('/health')['ok'])
+          target='https://www.google.com/maps/dir/?api=1&destination=Berlin'
+          result=call('/api/maps/resolve?url='+urllib.parse.quote(target,safe=''))
+          assert result['url'].startswith('https://www.google.com/maps/dir/')
+          print('Maps endpoint OK')
+          PY
