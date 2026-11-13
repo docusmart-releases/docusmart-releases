@@ -54,6 +54,8 @@ jobs:
             {display_name:'Hauptstraße 12, Bremen, 28195',address:{postcode:'28195'}}),false);
           assert.equal(ctx.matchesResolvedDestination('Hauptstraße 12, Verden',
             {display_name:'Hauptstraße 12, Bremen, Deutschland',address:{}}),false);
+          assert.equal(ctx.matchesResolvedDestination('Hauptstraße 12, Verden, Niedersachsen',
+            {display_name:'Hauptstraße 12, Oldenburg, Niedersachsen',address:{}}),false);
           assert.equal(ctx.extractUrlFromText('Route teilen: https://maps.app.goo.gl/abc123'),'https://maps.app.goo.gl/abc123');
           console.log('Parser test PASSED');
           JS
@@ -63,13 +65,13 @@ jobs:
           python3 - <<'PY'
           import urllib.request,json
           base='https://docusmart-releases.github.io/docusmart-releases/dieselroute/'
-          for path in ['?v=0.10','manifest.webmanifest','sw.js','icon.svg']:
+          for path in ['?v=0.10.1','manifest.webmanifest','sw.js','icon.svg']:
               req=urllib.request.Request(base+path,headers={'User-Agent':'Mozilla/5.0 DieselRoute-webtest'})
               with urllib.request.urlopen(req,timeout=18) as res:
                   assert res.status==200
                   data=res.read(150000).decode('utf-8')
                   print('Page asset:',path,'HTTP',res.status,'bytes',len(data))
-                  if path=='?v=0.9': assert 'Testversion 0.10' in data and 'acceptSharedGoogleMapsLink' in data
+                  if path=='?v=0.9': assert 'Testversion 0.10.1' in data and 'acceptSharedGoogleMapsLink' in data
                   if path=='manifest.webmanifest':
                       m=json.loads(data)
                       assert m['share_target']['params']['url']=='url'
