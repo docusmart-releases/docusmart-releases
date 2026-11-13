@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0a2436">
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0a2436"><link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="./icon.svg" type="image/svg+xml">
 <title>DieselRoute – günstig tanken entlang deiner Fahrt</title>
 <style>
 :root{font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#102c40;background:#f2f6f9}*{box-sizing:border-box}body{margin:0}header{background:linear-gradient(115deg,#0b2e44,#085965);color:#fff;padding:27px max(18px,calc((100vw - 900px)/2)) 34px}h1{font-size:31px;margin:0 0 8px;letter-spacing:-1px}header p{margin:0;opacity:.86;line-height:1.45}.mark{color:#a1f4bf}main{max-width:900px;margin:-16px auto 28px;padding:0 14px}.card{background:#fff;border:1px solid #dce7eb;border-radius:19px;padding:19px;margin-bottom:14px;box-shadow:0 9px 28px #0926370b}h2{font-size:18px;margin:0 0 16px}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.field{display:flex;flex-direction:column;gap:6px}.field.wide{grid-column:1/-1}label{font-size:13px;font-weight:650;color:#3e6071}input{width:100%;border:1px solid #c9d8df;border-radius:11px;padding:13px 12px;font:inherit;outline:0;background:#fafcfd}input:focus{border-color:#087b79;box-shadow:0 0 0 3px #36b8b31f}button,.btn{border:0;background:#007c73;color:white;border-radius:12px;display:inline-block;font:inherit;font-weight:700;padding:14px 19px;cursor:pointer;text-align:center;text-decoration:none}button:disabled{opacity:.55;cursor:wait}.ghost{background:#e9f6f3;color:#08645d;padding:10px 13px;font-size:13px}.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:15px}.subtle,.source{font-size:12px;color:#597281;line-height:1.5}.note{background:#edf8f5;border-radius:11px;padding:12px;color:#1d625c;font-size:13px;line-height:1.5}.warn{background:#fff3dc;color:#735313;border-radius:11px;padding:12px;line-height:1.5;font-size:13px}.error{background:#fff0ee;color:#962c1f}.metricline{display:flex;gap:9px;flex-wrap:wrap;margin:12px 0}.chip{display:inline-flex;border-radius:999px;background:#eaf1f5;padding:7px 11px;font-size:12px;color:#2e556a;font-weight:600}.station{border-top:1px solid #e2ecf0;padding:17px 0;display:grid;grid-template-columns:1fr auto;gap:6px 12px}.station:first-of-type{border-top:0}.station h3{font-size:16px;margin:0 0 4px}.station p{font-size:13px;color:#5b7180;margin:4px 0}.price{font-size:24px;font-weight:850;color:#047d68;white-space:nowrap;text-align:right}.result-buttons{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:9px}.result-buttons a{font-size:12px;border-radius:9px;padding:8px 11px;text-decoration:none;background:#ebf6f5;color:#076c66;font-weight:700}.routebar{background:#e5f0f1;height:8px;border-radius:15px;overflow:hidden;margin-top:10px}.routebar b{display:block;height:100%;background:#0b9387;transition:width .2s}footer{text-align:center;padding:6px 14px 30px;color:#617b87;font-size:12px}a{color:#086b71}#results{display:none}#status{display:none;margin:12px 0}#progress{display:none}#resultsList:empty{display:none}@media(max-width:560px){header{padding:23px 20px 39px}h1{font-size:28px}main{margin-top:-22px}.fields{grid-template-columns:1fr}.field.wide{grid-column:auto}.station{grid-template-columns:1fr auto}.price{font-size:20px}.card{padding:16px}button{width:100%}.controls button{width:auto;flex:1}}
@@ -9,11 +9,11 @@
 <section class="card"><h2>1 · Route festlegen</h2>
 <div class="gps-toggle"><input type="checkbox" id="useGps" checked><label for="useGps"><strong>Meinen aktuellen GPS-Standort als Start verwenden</strong><br>Bei jeder Suche neu ermitteln. Die Restreichweite zählt ab dort, nicht ab dem ursprünglich geplanten Start.</label></div><div id="gpsState" class="gps-state" aria-live="polite">GPS noch nicht abgerufen. Beim Suchen fragt der Browser nach Standortfreigabe.</div>
 <div class="fields">
-<div class="field wide"><label for="mapsLink">Google-Maps-Routenlink (optional)</label><input id="mapsLink" type="url" placeholder="https://www.google.com/maps/dir/?api=1&origin=..."><button id="extract" class="ghost" type="button">Start und Ziel aus Link übernehmen</button></div>
+<div class="field wide"><label for="mapsLink">Google-Maps-Route teilen oder Link einfügen</label><input id="mapsLink" type="url" autocomplete="off" placeholder="Google-Maps-Link einfügen (auch maps.app.goo.gl)"><div class="controls" style="margin-top:5px"><button id="extract" class="ghost" type="button">Google-Maps-Link übernehmen</button><button id="pasteMapsLink" class="ghost" type="button">Aus Zwischenablage</button></div><p class="subtle">Auf Android: DieselRoute in Chrome zum Startbildschirm hinzufügen. Bei unterstützten Geräten erscheint die installierte App danach direkt unter „Teilen“ in Google Maps.</p></div>
 <div class="field"><label for="start">Startort / GPS-Koordinaten (zur Kontrolle oder manuell)</label><input id="start" autocomplete="street-address" placeholder="z. B. Köln, Deutschland"></div>
 <div class="field"><label for="end">Ziel</label><input id="end" placeholder="z. B. Frankfurt am Main"></div>
-<div class="field wide"><label for="via">Zwischenhalt (optional)</label><input id="via" placeholder="z. B. Limburg an der Lahn"></div>
-</div><p class="subtle">Du kannst den Google-Maps-Link einfügen oder Orte eintippen. Kurzlinks lassen sich teils nicht automatisch auslesen. Die Strecke wird unabhängig von Google Maps über OpenStreetMap/OSRM neu berechnet und kann deshalb abweichen.</p></section>
+<div class="field wide"><label for="via">Zwischenhalte (optional, mehrere mit | trennen)</label><input id="via" placeholder="z. B. Limburg an der Lahn"></div>
+</div><p class="subtle">Beim Import versucht DieselRoute, kurze Google-Maps-Links aufzulösen und das Ziel automatisch einzutragen. GPS liefert den aktuellen Start. <strong>Wichtig:</strong> Google Maps gibt die exakt laufende Navigationsroute nicht zuverlässig an andere Webseiten weiter. Bei mehreren möglichen Strecken musst du die richtige weiterhin bestätigen.</p></section>
 <section class="card"><h2>2 · Tankstopp planen</h2><div class="fields">
 <div class="field"><label for="reach">Aktuelle Restreichweite laut Auto (km)</label><input id="reach" type="number" min="10" max="1800" placeholder="z. B. 180" inputmode="numeric" required></div>
 <div class="field"><label for="reserve">Sicherheitsreserve (km)</label><input id="reserve" type="number" min="0" max="500" value="30" inputmode="numeric"></div>
@@ -26,7 +26,7 @@
 <div id="progress" class="card"><strong id="progressText">Suche läuft</strong><div class="routebar"><b id="progressBar" style="width:0%"></b></div></div>
 <section id="results" class="card"><h2 id="heading">Ergebnisse</h2><div id="summary" class="metricline"></div><div id="notice" class="note"></div><div id="resultsList"></div><div id="moreArea" style="display:none;margin-top:14px;text-align:center"><button id="more" type="button" class="ghost">Weitere 5 anzeigen</button><p id="moreCount" class="subtle" aria-live="polite"></p></div></section>
 <section class="card"><h2>Wichtig zur Genauigkeit</h2><p class="subtle">Diese Testversion berechnet Routen und Umwege über öffentliche OpenStreetMap/OSRM-Dienste, nicht über Google Maps oder Live-Verkehrsdaten. Sie sucht schrittweise Tankstellen entlang deiner erreichbaren Strecke. Ergebnisse können unvollständig sein, wenn öffentliche Dienste begrenzen oder ausfallen. Prüfe vor der Abfahrt Preis, Öffnung und tatsächliche Fahrtzeit in der Navigation. Die Preisquelle wird nur für die Abfrage auf Nutzeraktion verwendet.</p><div class="warn">Sicherheit: Bitte während der Fahrt nicht bedienen. Nimm die Suche vor der Fahrt oder bei einem sicheren Halt vor.</div></section>
-</main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script><footer>DieselRoute · Testversion 0.8 · Routen: OpenStreetMap / OSRM / Nominatim · Preise: <a href="https://tankpuls.de" target="_blank" rel="noopener">MTS-K über tankerkoenig.de / TankPuls</a> (CC BY 4.0)</footer>
+</main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script><footer>DieselRoute · Testversion 0.9 · Routen: OpenStreetMap / OSRM / Nominatim · Preise: <a href="https://tankpuls.de" target="_blank" rel="noopener">MTS-K über tankerkoenig.de / TankPuls</a> (CC BY 4.0)</footer>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
@@ -41,31 +41,82 @@ const rad=Math.PI/180;
 function hav(a,b){const dLat=(b[1]-a[1])*rad,dLon=(b[0]-a[0])*rad;const x=Math.sin(dLat/2)**2+Math.cos(a[1]*rad)*Math.cos(b[1]*rad)*Math.sin(dLon/2)**2;return 12742*Math.asin(Math.min(1,Math.sqrt(x)))}
 async function json(url,timeout=15000){const c=new AbortController();const t=setTimeout(()=>c.abort(),timeout);try{const r=await fetch(url,{signal:c.signal,headers:{Accept:'application/json'}});if(!r.ok)throw Error('HTTP '+r.status);return await r.json()}finally{clearTimeout(t)}}
 function isCurrentLocation(s){const v=String(s||'').toLowerCase().replace(/\\+/g,' ').trim();return ['current location','my location','your location','mein standort','aktueller standort'].includes(v)}
-$('extract').addEventListener('click',()=>{
- const raw=$('mapsLink').value.trim();
- if(!raw){status('Bitte zuerst einen Google-Maps-Routenlink einfügen.',true);return}
- try{
-   const u=new URL(raw);const host=u.hostname.toLowerCase();
-   if(host==='maps.app.goo.gl'||host==='goo.gl'){status('Das ist ein Google-Maps-Kurzlink. Seine Weiterleitung kann DieselRoute im Browser nicht zuverlässig auslesen. Bitte den Link in einem Browser öffnen und die vollständige Google-Maps-Adresse kopieren oder Start und Ziel direkt eintragen.',true);return}
-   if(host.indexOf('google.')===-1){status('Bitte einen Google-Maps-Routenlink einfügen.',true);return}
-   let a=u.searchParams.get('origin')||u.searchParams.get('saddr')||'';
-   let b=u.searchParams.get('destination')||u.searchParams.get('daddr')||'';
-   let v=u.searchParams.get('waypoints')||'';
-   const pathname=decodeURIComponent(u.pathname).replace(/\\+/g,' ');
-   const ix=pathname.indexOf('/dir/');
-   if(ix>=0){
-     const pieces=pathname.substring(ix+5).split('/').filter(z=>z && z[0]!=='@' && !z.startsWith('data=') && z[0]!=='!');
-     if(pieces.length>=2){
-       a=a||pieces[0];b=b||pieces[pieces.length-1];
-       if(!v&&pieces.length>2)v=pieces.slice(1,-1).join(', ');
-     }
-   }
-   if(!b){status('Dieser Google-Maps-Link enthält keinen auslesbaren Zielort. Bitte Start und Ziel von Hand eintragen oder eine vollständige Google-Maps-Routenadresse verwenden.',true);return}
-   if(a&&!isCurrentLocation(a))$('start').value=a;
-   $('end').value=b;if(v)$('via').value=v;
-   status('Ziel aus dem Link übernommen'+(a&&!isCurrentLocation(a)?' und Start ebenfalls':'; der Start kommt bei aktiviertem GPS vom aktuellen Standort')+'. Kontrolliere die Orte und wähle anschließend deine Fahrstrecke auf der Karte. Ein Google-Link überträgt die exakt ausgewählte Alternativroute noch nicht.');
- }catch(e){status('Der eingefügte Link ist nicht lesbar. Bitte eine vollständige Google-Maps-Adresse oder Start und Ziel eingeben.',true)}
+// Aus Androids Teilen-Dialog, einer kopierten Kurz-URL oder einem langen Google-Link importieren.
+function extractUrlFromText(raw){
+  const m=String(raw||'').match(/https:\/\/[^\s<>"']+/i);
+  return m?m[0].replace(/[),.;]+$/,''):String(raw||'').trim();
+}
+function cleanMapsPart(value){return decodeURIComponent(String(value||'').replace(/\+/g,' ')).trim()}
+function parseMapsDirections(raw){
+  const u=new URL(raw);
+  const host=u.hostname.toLowerCase();
+  if(!['google.com','www.google.com','maps.google.com','google.de','www.google.de'].includes(host))
+    throw Error('Dieser Link ist keine unterstützte Google-Maps-Adresse.');
+  let a=u.searchParams.get('origin')||u.searchParams.get('saddr')||'';
+  let b=u.searchParams.get('destination')||u.searchParams.get('daddr')||'';
+  let via=u.searchParams.get('waypoints')||'';
+  let p=decodeURIComponent(u.pathname).replace(/\+/g,' ');
+  const ix=p.indexOf('/dir/');
+  if(ix>=0){
+    const pieces=p.substring(ix+5).split('/').filter(x=>x&&!x.startsWith('@')&&!x.startsWith('data=')&&!x.startsWith('!'));
+    if(pieces.length>=2){a=a||pieces[0];b=b||pieces[pieces.length-1];if(!via&&pieces.length>2)via=pieces.slice(1,-1).join('|')}
+    else if(pieces.length===1)b=b||pieces[0];
+  }
+  // Einzelner geteilte Zielmarkierung, nicht als genaue Route ausgeben.
+  if(!b&&p.includes('/place/'))b=p.split('/place/')[1].split('/')[0];
+  // Manche Google-Maps-Links verwenden ?q= für einen einzelnen Zielort.
+  if(!b&&u.searchParams.get('q')&&!a)b=u.searchParams.get('q');
+  a=cleanMapsPart(a);b=cleanMapsPart(b);via=cleanMapsPart(via);
+  if(!b || b==='dir' || b==='maps')throw Error('Google Maps hat in diesem Link keinen eindeutig auslesbaren Zielort übermittelt.');
+  return {start:a, end:b, via:via.replace(/\|/g,' | '), fullUrl:u.toString()};
+}
+async function importSharedLink(){
+  const button=$('extract');const raw=extractUrlFromText($('mapsLink').value);
+  if(!raw)return status('Bitte zunächst einen geteilten Google-Maps-Link einfügen.',true);
+  button.disabled=true;
+  try{
+    let u=new URL(raw),host=u.hostname.toLowerCase();
+    if(host==='maps.app.goo.gl'||host==='goo.gl'){
+      status('Google-Maps-Kurzlink wird entschlüsselt …');
+      let response;
+      try{response=await json(PRICE_WORKER+'/api/maps/resolve?url='+encodeURIComponent(u.toString()),13000)}
+      catch(e){throw Error('Der Google-Maps-Kurzlink konnte nicht aufgelöst werden. Bitte den Link erneut teilen oder das Ziel direkt eingeben.')}
+      if(!response.url)throw Error('Der Google-Maps-Kurzlink konnte nicht aufgelöst werden.');
+      u=new URL(response.url);
+    }
+    const route=parseMapsDirections(u.toString());
+    $('end').value=route.end;
+    $('via').value=route.via||'';
+    if($('useGps').checked){
+      $('gpsState').textContent='Beim Suchen wird dein aktueller GPS-Standort als Start verwendet.';
+    }else if(route.start && !isCurrentLocation(route.start)){$('start').value=route.start;}
+    $('mapsLink').value=raw;
+    status('Google-Maps-Ziel übernommen: <strong>'+esc(route.end)+'</strong>'+(route.via?' · Über '+esc(route.via):'')+'. Der Start kommt per GPS. Bitte Restreichweite einstellen und suchen. Eine exakt ausgewählte Google-Maps-Navigationsvariante lässt sich über den Freigabelink nicht sicher übertragen.');
+    $('end').scrollIntoView({behavior:'smooth',block:'center'});
+  }catch(e){status('Routenimport: '+esc(e.message||e),true)}
+  finally{button.disabled=false}
+}
+$('extract').addEventListener('click',importSharedLink);
+$('pasteMapsLink').addEventListener('click',async()=>{
+  try{
+    if(!navigator.clipboard?.readText)throw Error('Die Zwischenablage ist hier nicht freigegeben.');
+    $('mapsLink').value=await navigator.clipboard.readText();
+    await importSharedLink();
+  }catch(e){status('Bitte den Google-Maps-Link ins Linkfeld einfügen und „Google-Maps-Link übernehmen“ tippen. '+esc(e.message||e),true)}
 });
+// Ein installierter Android-PWA-Share-Target erhält title/text/url als GET-Parameter.
+function acceptSharedGoogleMapsLink(){
+  const params=new URLSearchParams(location.search);
+  if(!params.has('from')&&!params.has('text')&&!params.has('url'))return;
+  const value=[params.get('url'),params.get('text'),params.get('title')].filter(Boolean).join(' ');
+  const shared=extractUrlFromText(value);
+  history.replaceState({},'',location.pathname);
+  if(!shared.startsWith('https://'))return;
+  $('mapsLink').value=shared;
+  setTimeout(importSharedLink,100);
+}
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js',{scope:'./'}).catch(()=>{});
+acceptSharedGoogleMapsLink();
 function gpsError(e){
  if(e && e.code===1)return new Error('Der Browser meldet, dass Standortzugriff blockiert ist, obwohl du vielleicht schon „Erlauben“ gewählt hast. Prüfe unter Android die Standort-Berechtigung des Browsers und der Webseite.');
  if(e && e.code===3)return new Error('Der Browser konnte den GPS-Standort nicht rechtzeitig ermitteln. Versuche es im Freien oder wähle „Startort manuell eingeben“.');
@@ -140,7 +191,7 @@ const start=$('start').value.trim(),end=$('end').value.trim(),via=$('via').value
 if(!$('reach').value.trim())throw Error('Bitte zuerst die aktuelle Restreichweite laut Fahrzeuganzeige eingeben.');const reach=num('reach',NaN),reserve=num('reserve',30),detour=num('detour',10),radius=num('radius',8);
 if(!Number.isFinite(reach)||reach<10||reach>1800||reserve<0||reach<=reserve||detour<1||detour>60||radius<2||radius>15)throw Error('Bitte Reichweite, Reserve, Umweg und Suchkorridor sinnvoll einstellen.');
 let first;if(useGps){status('Aktuellen Standort für die Restreichweite bestimmen …');const fix=await freshGps();showGpsPosition(fix);if(fix.coords.accuracy>5000)throw Error('GPS ist zu ungenau (über 5 km). Bitte präzisere Ortung aktivieren oder einen manuellen Startort verwenden.');first=[fix.coords.longitude,fix.coords.latitude]}else{status('Startort ermitteln …');first=await geocode(start)}
-status('Route ab '+(useGps?'aktuellem GPS-Standort':'eingegebenem Startort')+' wird berechnet …');let pts=[first];if(via){await wait(1100);pts.push(await geocode(via))}await wait(1100);pts.push(await geocode(end));
+status('Route ab '+(useGps?'aktuellem GPS-Standort':'eingegebenem Startort')+' wird berechnet …');let pts=[first];if(via){for(const stop of via.split('|').map(x=>x.trim()).filter(Boolean).slice(0,8)){await wait(1100);pts.push(await geocode(stop))}}await wait(1100);pts.push(await geocode(end));
 const alternatives=await routeBetween(pts);status('Bitte erst die passende Straße aus den Routenalternativen auswählen.');const rr=await pickRoute(alternatives);const shape=rr.geometry.coordinates;let d=indexRoute(shape),total=d[d.length-1],limit=Math.min(total,reach-reserve);if(limit<=0)throw Error('Keine Reichweite nach Abzug der Reserve übrig.');
 showProgress(0,1,'Suche nach Dieselpreisen …');status('Suche ab '+(useGps?'aktuellem GPS-Standort':'eingegebenem Startort')+' bis '+limit.toFixed(0)+' km auf der Route (mit '+reserve+' km Reserve).');
 const stations=new Map();let fails=0,interval=Math.max(10,Math.min(18,radius*1.65));let samples=[];for(let k=0;k<=limit;k+=interval)samples.push(k);if(samples[samples.length-1]<limit-1)samples.push(limit);
