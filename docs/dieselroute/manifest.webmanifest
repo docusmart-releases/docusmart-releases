@@ -1,0 +1,29 @@
+{
+  "name": "DieselRoute – günstig Diesel tanken",
+  "short_name": "DieselRoute",
+  "description": "Günstige Tankstellen entlang deiner Route",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f2f6f9",
+  "theme_color": "#0a2436",
+  "lang": "de",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "share_target": {
+    "action": "./?from=share",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}
