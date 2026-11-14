@@ -77,8 +77,9 @@ jobs:
           }
           assert.equal(fuelCtx.normalizeFuel('unknown'),'diesel');
           assert(s.includes('getStations(p[1].toFixed(5),p[0].toFixed(5),Math.min(50,radius+2.5),fuel)'));
-          assert(s.includes('id="fuel"') && s.includes('<option value="e10">Super E10</option>'));
-          assert(s.includes('Testversion 0.11.0'));
+          const page=fs.readFileSync('docs/dieselroute/index.html','utf8');
+          assert(page.includes('id="fuel"') && page.includes('<option value="e10">Super E10</option>'));
+          assert(page.includes('Testversion 0.11.0'));
           console.log('Parser and Diesel/E5/E10 fuel tests PASSED');
           JS
       - name: Verify published DieselRoute share target files
