@@ -124,6 +124,28 @@ jobs:
               assert results['items'],fuel+' no stations in Berlin test area'
               assert all(isinstance(item.get('priceCents'),(int,float)) and item['priceCents']>0 for item in results['items']),fuel+' invalid prices'
               print('Live fuel:',fuel,'stations:',len(results['items']))
+          # Nur Metadaten eines konkreten geteilten Routenlinks prüfen – keine Adressen protokollieren.
+          user_link='https://maps.app.goo.gl/j8QsZns9afz1b4K47'
+          try:
+              obj=call('/api/maps/resolve?url='+urllib.parse.quote(user_link,safe=''))
+              final=obj['url']
+              parts=urllib.parse.urlparse(final)
+              params=urllib.parse.parse_qs(parts.query)
+              names=sorted(params)
+              print('USER_ROUTE_LINK_HOST:',parts.hostname)
+              print('USER_ROUTE_LINK_LENGTH:',len(final))
+              print('USER_ROUTE_PATH_SEGMENT_SIZES:',[len(p) for p in parts.path.split('/') if p])
+              print('USER_ROUTE_PATH_HAS_DIR:', '/dir/' in parts.path)
+              print('USER_ROUTE_QUERY_KEYS:',names)
+              for k in names:
+                  vals=params[k]
+                  print('USER_ROUTE_FIELD:',k,'lengths:',[len(v) for v in vals],
+                    'contains_402:',any('402' in v for v in vals),
+                    'contains_4h20:',any('4 h 20' in v for v in vals))
+              print('USER_ROUTE_MARKERS:',{m:final.count(m) for m in ['!1m','!2m','!3e','!4m','!4d','!3d','!3m','/data=','geocode=','!1d','!2d']})
+          except Exception as e:
+              print('USER_ROUTE_EXPANSION_ERROR:',type(e).__name__,str(e)[:120])
+
           # Publicly posted Google Maps shortlink; only log status/host, never the route or coordinates.
           short='https://maps.app.goo.gl/nQYgTaAfqsCMreWc8'
           try:
