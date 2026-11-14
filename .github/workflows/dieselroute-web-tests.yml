@@ -79,7 +79,15 @@ jobs:
           assert(s.includes('getStations(p[1].toFixed(5),p[0].toFixed(5),Math.min(50,radius+2.5),fuel)'));
           const page=fs.readFileSync('docs/dieselroute/index.html','utf8');
           assert(page.includes('id="fuel"') && page.includes('<option value="e10">Super E10</option>'));
-          assert(page.includes('Testversion 0.11.0'));
+          assert(page.includes('Testversion 0.12.0'));
+          assert(page.includes('id="adjustRoute"') && page.includes('id="routeGuidance"'));
+          assert(s.includes('const rr=await pickRoute(alternatives,pts)'));
+          assert(s.includes('steps=true'));
+          const roadsPart=s.slice(s.indexOf('function routeRoads(route)'),s.indexOf('function pickRoute(',s.indexOf('function routeRoads(route)'));
+          const roadCtx={Map};
+          vm.runInNewContext(roadsPart,roadCtx);
+          const route={legs:[{steps:[{ref:'A 3',distance:20000},{ref:'A 1',distance:4000},{ref:'A 3',distance:6000},{ref:'B 75',distance:3000}]}]};
+          assert.equal(roadCtx.routeRoads(route).join(','),'A3,A1,B75');
           console.log('Parser and Diesel/E5/E10 fuel tests PASSED');
           JS
       - name: Verify published DieselRoute share target files
@@ -88,7 +96,7 @@ jobs:
           python3 - <<'PY'
           import urllib.request,json
           base='https://docusmart-releases.github.io/docusmart-releases/dieselroute/'
-          for path in ['?v=0.11.0','manifest.webmanifest','sw.js','icon.svg']:
+          for path in ['?v=0.12.0','manifest.webmanifest','sw.js','icon.svg']:
               req=urllib.request.Request(base+path,headers={'User-Agent':'Mozilla/5.0 DieselRoute-webtest'})
               with urllib.request.urlopen(req,timeout=18) as res:
                   assert res.status==200
