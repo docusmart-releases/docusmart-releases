@@ -143,6 +143,12 @@ jobs:
                     'contains_402:',any('402' in v for v in vals),
                     'contains_4h20:',any('4 h 20' in v for v in vals))
               print('USER_ROUTE_MARKERS:',{m:final.count(m) for m in ['!1m','!2m','!3e','!4m','!4d','!3d','!3m','/data=','geocode=','!1d','!2d']})
+              import re
+              segments=[p for p in parts.path.split('/') if p]
+              print('USER_ROUTE_SEGMENT_CLASSES:',[('camera' if p.startswith('@') else 'metadata' if p.startswith('data=') else 'location') for p in segments[2:]])
+              datas=[p.split('=',1)[1] for p in segments if p.startswith('data=')]
+              print('USER_ROUTE_DATA_CODES:',[re.findall(r'!\\d+[a-zA-Z]',p) for p in datas])
+              print('USER_ROUTE_DATA_HAS_POLYLINE:',any(re.search(r'(!\\d+s.{50,})',p) for p in datas))
           except Exception as e:
               print('USER_ROUTE_EXPANSION_ERROR:',type(e).__name__,str(e)[:120])
 
