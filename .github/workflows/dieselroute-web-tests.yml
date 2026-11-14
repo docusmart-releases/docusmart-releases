@@ -66,7 +66,20 @@ jobs:
             {display_name:'Ringstraße, Montabaur, Westerwaldkreis, Rheinland-Pfalz, 56410, Deutschland',
              address:{postcode:'56410',road:'Ringstraße',town:'Montabaur'}}),false);
           assert.equal(ctx.extractUrlFromText('Route teilen: https://maps.app.goo.gl/abc123'),'https://maps.app.goo.gl/abc123');
-          console.log('Parser test PASSED');
+          // Prüfe, dass die gewählte Sorte die Preis-API erreicht.
+          const fuelBlock=s.slice(s.indexOf('const PRICE_WORKER='),s.indexOf('async function evaluateBatch('));
+          const fuelCtx={URLSearchParams};
+          vm.runInNewContext(fuelBlock,fuelCtx);
+          for (const [fuel,label] of [['diesel','Diesel'],['e5','Super E5'],['e10','Super E10']]){
+            assert.equal(fuelCtx.fuelLabel(fuel),label);
+            const qs=new URL(fuelCtx.priceProxyUrl(52.52,13.405,5,fuel)).searchParams;
+            assert.equal(qs.get('fuel'),fuel);
+          }
+          assert.equal(fuelCtx.normalizeFuel('unknown'),'diesel');
+          assert(s.includes('getStations(p[1].toFixed(5),p[0].toFixed(5),Math.min(50,radius+2.5),fuel)'));
+          assert(s.includes('id="fuel"') && s.includes('<option value="e10">Super E10</option>'));
+          assert(s.includes('Testversion 0.11.0'));
+          console.log('Parser and Diesel/E5/E10 fuel tests PASSED');
           JS
       - name: Verify published DieselRoute share target files
         shell: bash
@@ -74,13 +87,13 @@ jobs:
           python3 - <<'PY'
           import urllib.request,json
           base='https://docusmart-releases.github.io/docusmart-releases/dieselroute/'
-          for path in ['?v=0.10.2','manifest.webmanifest','sw.js','icon.svg']:
+          for path in ['?v=0.11.0','manifest.webmanifest','sw.js','icon.svg']:
               req=urllib.request.Request(base+path,headers={'User-Agent':'Mozilla/5.0 DieselRoute-webtest'})
               with urllib.request.urlopen(req,timeout=18) as res:
                   assert res.status==200
                   data=res.read(150000).decode('utf-8')
                   print('Page asset:',path,'HTTP',res.status,'bytes',len(data))
-                  if path=='?v=0.9': assert 'Testversion 0.10.2' in data and 'acceptSharedGoogleMapsLink' in data
+                  if path.startswith('?v='): assert 'DieselRoute' in data and 'acceptSharedGoogleMapsLink' in data
                   if path=='manifest.webmanifest':
                       m=json.loads(data)
                       assert m['share_target']['params']['url']=='url'
@@ -103,6 +116,13 @@ jobs:
           result=call('/api/maps/resolve?url='+urllib.parse.quote(target,safe=''))
           assert result['url'].startswith('https://www.google.com/maps/dir/')
           print('Maps endpoint OK')
+          for fuel in ('diesel','e5','e10'):
+              path='/api/stations/search?lat=52.52&lng=13.405&rad=5&fuel='+fuel+'&limit=5'
+              results=call(path)
+              assert isinstance(results.get('items'),list),fuel+' missing items'
+              assert results['items'],fuel+' no stations in Berlin test area'
+              assert all(isinstance(item.get('priceCents'),(int,float)) and item['priceCents']>0 for item in results['items']),fuel+' invalid prices'
+              print('Live fuel:',fuel,'stations:',len(results['items']))
           # Publicly posted Google Maps shortlink; only log status/host, never the route or coordinates.
           short='https://maps.app.goo.gl/nQYgTaAfqsCMreWc8'
           try:
