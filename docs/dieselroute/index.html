@@ -26,7 +26,7 @@
 <div id="progress" class="card"><strong id="progressText">Suche läuft</strong><div class="routebar"><b id="progressBar" style="width:0%"></b></div></div>
 <section id="results" class="card"><h2 id="heading">Ergebnisse</h2><div id="summary" class="metricline"></div><div id="notice" class="note"></div><div id="resultsList"></div><div id="moreArea" style="display:none;margin-top:14px;text-align:center"><button id="more" type="button" class="ghost">Weitere 5 anzeigen</button><p id="moreCount" class="subtle" aria-live="polite"></p></div></section>
 <section class="card"><h2>Wichtig zur Genauigkeit</h2><p class="subtle">Diese Testversion berechnet Routen und Umwege über öffentliche OpenStreetMap/OSRM-Dienste, nicht über Google Maps oder Live-Verkehrsdaten. Sie sucht schrittweise Tankstellen entlang deiner erreichbaren Strecke. Ergebnisse können unvollständig sein, wenn öffentliche Dienste begrenzen oder ausfallen. Prüfe vor der Abfahrt Preis, Öffnung und tatsächliche Fahrtzeit in der Navigation. Die Preisquelle wird nur für die Abfrage auf Nutzeraktion verwendet.</p><div class="warn">Sicherheit: Bitte während der Fahrt nicht bedienen. Nimm die Suche vor der Fahrt oder bei einem sicheren Halt vor.</div></section>
-</main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script><footer>DieselRoute · Testversion 0.10.1 · Routen: OpenStreetMap / OSRM / Nominatim · Preise: <a href="https://tankpuls.de" target="_blank" rel="noopener">MTS-K über tankerkoenig.de / TankPuls</a> (CC BY 4.0)</footer>
+</main><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script><footer>DieselRoute · Testversion 0.10.2 · Routen: OpenStreetMap / OSRM / Nominatim · Preise: <a href="https://tankpuls.de" target="_blank" rel="noopener">MTS-K über tankerkoenig.de / TankPuls</a> (CC BY 4.0)</footer>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
@@ -62,45 +62,70 @@ function normalizePlace(s){
   return String(s||'').toLocaleLowerCase('de-DE').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .replace(/ß/g,'ss').replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 }
+function canonicalDestination(input){
+  return String(input||'').trim().replace(/\b(?:D|DE)\s*[-–]\s*(?=\d{5}\b)/ig,'').replace(/\s+/g,' ');
+}
 function matchesResolvedDestination(query,hit){
-  const postal=(String(query).match(/\b\d{5}\b/)||[])[0];
-  const address=hit.address||{};
-  const display=normalizePlace(hit.display_name);
-  if(postal && String(address.postcode||'')!==postal && !display.includes(postal))return false;
-  const fragments=String(query).split(',').map(v=>v.trim()).filter(Boolean);
+  const source=canonicalDestination(query);
+  const postal=(source.match(/\b\d{5}\b/)||[])[0];
+  const display=normalizePlace(hit.display_name||'');
+  const addr=hit.address||{};
+  const hitPostal=String(addr.postcode||'');
+  if(postal && (hitPostal ? hitPostal!==postal : !display.includes(postal)))return false;
+  const fragments=source.split(',').map(v=>v.trim()).filter(Boolean);
   const country=/^(deutschland|germany|austria|österreich|switzerland|schweiz)$/i;
-  const placeParts=fragments.filter(v=>!country.test(v));
-  if(postal){
-    const withZip=placeParts.find(v=>v.includes(postal));
-    if(withZip){
-      const locality=normalizePlace(withZip.replace(postal,''));
-      if(locality && !display.includes(locality))return false;
-    }
-  }else if(placeParts.length>=2){
-    // Stadt und Region prüfen, nicht nur den letzten Bestandteil (etwa ein Bundesland).
-    for(const part of placeParts.slice(1)){
-      const locality=normalizePlace(part);
-      if(locality && !display.includes(locality))return false;
-    }
-  }else if(!placeParts.length)return false;
+  const parts=fragments.filter(v=>!country.test(v));
+  if(parts.length<2 && !postal)return false;
+  const localityParts=parts.slice(1).map(v=>normalizePlace(v.replace(/\b\d{5}\b/,'').trim())).filter(Boolean);
+  if(!localityParts.length)return false;
+  // Zwingend die tatsächliche Stadt prüfen (auch bei vorhandener PLZ).
+  if(!localityParts.every(city=>display.includes(city)))return false;
+  const requestedStreet=normalizePlace((parts[0]||'').replace(/\b\d+[a-z]?\b/gi,'').trim());
+  const responseStreet=normalizePlace(addr.road||addr.pedestrian||addr.residential||addr.footway||'');
+  if(requestedStreet && responseStreet && !responseStreet.includes(requestedStreet)&&!requestedStreet.includes(responseStreet))return false;
+  const wantedNo=(parts[0]||'').match(/\b(\d+[a-z]?)\b/i)?.[1];
+  const actualNo=String(addr.house_number||'').trim();
+  if(wantedNo && actualNo && normalizePlace(wantedNo)!==normalizePlace(actualNo))return false;
   return true;
 }
 async function verifyImportedDestination(input){
-  if(streetOnlyDestination(input)){
-    throw Error('Google Maps hat nur die Straße ohne Ort/PLZ geteilt. Bitte den Zielort ergänzen, bevor du die Route berechnest.');
+  const canonical=canonicalDestination(input);
+  if(streetOnlyDestination(canonical)){
+    throw Error('Google Maps hat nur eine Straße ohne vollständigen Ort oder PLZ geteilt. Bitte Ort ergänzen.');
   }
-  const direct=COORD_RE.exec(input);
+  const direct=COORD_RE.exec(canonical);
   if(direct){
     const lat=Number(direct[1]),lon=Number(direct[2]);
     if(Math.abs(lat)>90||Math.abs(lon)>180)throw Error('Google Maps hat ungültige Zielkoordinaten übergeben.');
-    return {point:[lon,lat],label:input};
+    return {point:[lon,lat],label:canonical,approx:false};
   }
-  const results=await json('https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&countrycodes=de,at,ch&accept-language=de&q='+encodeURIComponent(input),14000);
-  if(!Array.isArray(results)||!results.length)throw Error('Die vollständige Zieladresse wurde nicht gefunden. Bitte Ziel einschließlich PLZ und Ort eingeben.');
-  const hit=results.find(r=>matchesResolvedDestination(input,r));
-  if(!hit)throw Error('Die Zieladresse konnte keinem eindeutigen Ort zugeordnet werden. Bitte Ziel mit PLZ und Stadt ergänzen.');
-  if(!Number.isFinite(Number(hit.lat))||!Number.isFinite(Number(hit.lon)))throw Error('Zielkoordinaten sind ungültig.');
-  return {point:[Number(hit.lon),Number(hit.lat)],label:hit.display_name};
+  const pieces=canonical.split(',').map(x=>x.trim()).filter(Boolean);
+  const postal=(canonical.match(/\b\d{5}\b/)||[])[0];
+  const street=pieces[0]||'';
+  const city=pieces.slice(1).find(x=>postal&&x.includes(postal))?.replace(postal,'').trim()
+    || pieces.slice(1).find(x=>!/^(deutschland|germany)$/i.test(x))?.trim()||'';
+  const candidates=[canonical];
+  if(city && street) candidates.push(street+', '+city+(postal?', '+postal:'')+', Deutschland');
+  if(city && postal && street)candidates.push(street.replace(/\s+\d+[a-z]?\s*$/i,'')+', '+postal+' '+city+', Deutschland');
+  let found=[],matched=null;
+  for(const candidate of [...new Set(candidates)]){
+    let results=[];
+    try{results=await json('https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=8&countrycodes=de,at,ch&accept-language=de&q='+encodeURIComponent(candidate),14000)}
+    catch(e){throw Error('Der Kartendienst zur Überprüfung des Zielorts antwortet nicht. Bitte später erneut versuchen.')}
+    if(Array.isArray(results)){
+      found.push(...results);
+      matched=results.find(r=>matchesResolvedDestination(canonical,r));
+      if(matched)break;
+    }
+    if(candidate!==candidates[candidates.length-1])await wait(1100);
+  }
+  if(!matched)throw Error('Die Adresse ist vollständig, aber in den Kartendaten nicht eindeutig auffindbar. Bitte kontrolliere Stadt und PLZ oder verwende einen anderen Zielpunkt.');
+  const lat=Number(matched.lat),lon=Number(matched.lon);
+  if(!Number.isFinite(lat)||!Number.isFinite(lon))throw Error('Zielkoordinaten sind ungültig.');
+  const actualNo=String(matched.address?.house_number||'').trim();
+  const requestedNo=street.match(/\b(\d+[a-z]?)\b/i)?.[1]||'';
+  const approx=Boolean(requestedNo && !actualNo);
+  return {point:[lon,lat],label:matched.display_name,approx};
 }
 
 function parseMapsDirections(raw){
@@ -157,9 +182,9 @@ async function importSharedLink(){
       $('end').value=verified.label;
       verifiedImportedDestination={text:verified.label,point:verified.point};
       unverifiedImportedDestination='';
-      status('Ziel überprüft: <strong>'+esc(verified.label)+'</strong>. Bitte kontrollieren, dass PLZ und Ort stimmen. Start per GPS. Der genaue Google-Maps-Streckenverlauf muss bei mehreren Alternativen weiterhin bestätigt werden.');
+      status('Ziel geprüft: <strong>'+esc(verified.label)+'</strong>. '+(verified.approx?'Hinweis: Die Hausnummer ist in den Kartendaten nicht einzeln erfasst; Ziel liegt näherungsweise an der Straße. ':'')+'Bitte kontrolliere Ort und PLZ. Start per GPS.');
     }catch(e){
-      status('Ziel nicht eindeutig: '+esc(e.message||e)+' Die App berechnet zur Sicherheit keine Route zu einem möglicherweise falschen Ort.',true);
+      status('Zielprüfung: '+esc(e.message||e)+' Das vollständige Ziel bleibt im Feld; es wird keine unbestätigte Strecke berechnet.',true);
     }
     $('end').scrollIntoView({behavior:'smooth',block:'center'});
   }catch(e){status('Routenimport: '+esc(e.message||e),true)}
@@ -257,7 +282,7 @@ $('moreCount').textContent='Gezeigt: '+Math.min(shownCount,accepted.length)+' vo
 $('resultsList').innerHTML=accepted.slice(0,shownCount).map((s,i)=>{const address=[s.street,s.postcode,s.city].filter(Boolean).join(', ');const nav='https://www.google.com/maps/dir/?api=1&destination='+s.lat+','+s.lng+'&travelmode=driving';return '<article class="station"><div><h3>'+((i===0)?'🏆 ':'')+esc(s.name||s.brandName||'Tankstelle')+'</h3><p>'+esc(address)+'</p><div class="metricline"><span class="chip">nach ca. '+Math.max(0,s.along-currentAlongKm).toFixed(0)+' km</span><span class="chip">+'+s.extraMin.toFixed(1).replace('.',',')+' Min. Umweg</span><span class="chip">'+esc(s.status==='open'?'geöffnet':'Öffnung prüfen')+'</span></div><div class="result-buttons"><a href="'+nav+'" target="_blank" rel="noopener">In Google Maps öffnen</a></div></div><div class="price">'+euro(s.priceCents/1000)+'<p>Diesel / Liter</p></div></article>'}).join('')}
 $('search').addEventListener('click',async()=>{const btn=$('search');if(btn.disabled)return;btn.disabled=true;clearRouteSelection();shownCount=5;currentAlongKm=0;latestGpsText='';lastRenderArgs=null;$('moreArea').style.display='none';$('results').style.display='none';$('progress').style.display='none';try{
 const start=$('start').value.trim(),end=$('end').value.trim(),via=$('via').value.trim(),useGps=$('useGps').checked;if(!end||(!useGps&&!start))throw Error('Bitte ein Ziel eingeben und GPS verwenden oder einen Startort eingeben.');
-if(unverifiedImportedDestination && end===unverifiedImportedDestination)throw Error('Das geteilte Google-Maps-Ziel ist nicht eindeutig. Bitte ergänze Straße, Postleitzahl und Ort im Zielfeld, sonst könnte die App zum falschen Ort navigieren.');
+if(importedMapsTarget && streetOnlyDestination(end))throw Error('Bitte ergänze zur Straße die Postleitzahl und den Ort. Erst dann wird die Route berechnet.');
 if(!$('reach').value.trim())throw Error('Bitte zuerst die aktuelle Restreichweite laut Fahrzeuganzeige eingeben.');const reach=num('reach',NaN),reserve=num('reserve',30),detour=num('detour',10),radius=num('radius',8);
 if(!Number.isFinite(reach)||reach<10||reach>1800||reserve<0||reach<=reserve||detour<1||detour>60||radius<2||radius>15)throw Error('Bitte Reichweite, Reserve, Umweg und Suchkorridor sinnvoll einstellen.');
 let first;if(useGps){status('Aktuellen Standort für die Restreichweite bestimmen …');const fix=await freshGps();showGpsPosition(fix);if(fix.coords.accuracy>5000)throw Error('GPS ist zu ungenau (über 5 km). Bitte präzisere Ortung aktivieren oder einen manuellen Startort verwenden.');first=[fix.coords.longitude,fix.coords.latitude]}else{status('Startort ermitteln …');first=await geocode(start)}
