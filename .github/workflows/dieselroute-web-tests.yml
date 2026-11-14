@@ -83,7 +83,7 @@ jobs:
           assert(page.includes('id="adjustRoute"') && page.includes('id="routeGuidance"'));
           assert(s.includes('const rr=await pickRoute(alternatives,pts)'));
           assert(s.includes('steps=true'));
-          const roadsPart=s.slice(s.indexOf('function routeRoads(route)'),s.indexOf('function pickRoute(',s.indexOf('function routeRoads(route)'));
+          const roadsPart=s.slice(s.indexOf('function routeRoads(route)'),s.indexOf('function pickRoute('));
           const roadCtx={Map};
           vm.runInNewContext(roadsPart,roadCtx);
           const route={legs:[{steps:[{ref:'A 3',distance:20000},{ref:'A 1',distance:4000},{ref:'A 3',distance:6000},{ref:'B 75',distance:3000}]}]};
