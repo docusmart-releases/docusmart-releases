@@ -1,0 +1,297 @@
+#ifndef FTMSBIKE_H
+#define FTMSBIKE_H
+
+#include <QBluetoothDeviceDiscoveryAgent>
+#include <QtBluetooth/qlowenergyadvertisingdata.h>
+#include <QtBluetooth/qlowenergyadvertisingparameters.h>
+#include <QtBluetooth/qlowenergycharacteristic.h>
+#include <QtBluetooth/qlowenergycharacteristicdata.h>
+#include <QtBluetooth/qlowenergycontroller.h>
+#include <QtBluetooth/qlowenergydescriptordata.h>
+#include <QtBluetooth/qlowenergyservice.h>
+#include <QtBluetooth/qlowenergyservicedata.h>
+#include <QtCore/qbytearray.h>
+#include <QtCore/qqueue.h>
+
+#ifndef Q_OS_ANDROID
+#include <QtCore/qcoreapplication.h>
+#else
+#include <QtGui/qguiapplication.h>
+#endif
+#include <QtCore/qlist.h>
+#include <QtCore/qmutex.h>
+#include <QtCore/qscopedpointer.h>
+#include <QtCore/qtimer.h>
+
+#include <QDateTime>
+#include <QObject>
+#include <QString>
+
+#include "wheelcircumference.h"
+#include "devices/bike.h"
+#include "inclinationresistancetable.h"
+#include "bodytone_safe_erg.h"
+
+#ifdef Q_OS_IOS
+#include "ios/lockscreen.h"
+#endif
+
+enum FtmsControlPointCommand {
+    FTMS_REQUEST_CONTROL = 0x00,
+    FTMS_RESET,
+    FTMS_SET_TARGET_SPEED,
+    FTMS_SET_TARGET_INCLINATION,
+    FTMS_SET_TARGET_RESISTANCE_LEVEL,
+    FTMS_SET_TARGET_POWER,
+    FTMS_SET_TARGET_HEARTRATE,
+    FTMS_START_RESUME,
+    FTMS_STOP_PAUSE,
+    FTMS_SET_TARGETED_EXP_ENERGY,
+  FTMS_SET_TARGETED_STEPS,
+    FTMS_SET_TARGETED_STRIDES,
+    FTMS_SET_TARGETED_DISTANCE,
+    FTMS_SET_TARGETED_TIME,
+    FTMS_SET_TARGETED_TIME_TWO_HR_ZONES,
+    FTMS_SET_TARGETED_TIME_THREE_HR_ZONES,
+    FTMS_SET_TARGETED_TIME_FIVE_HR_ZONES,
+    FTMS_SET_INDOOR_BIKE_SIMULATION_PARAMS,
+    FTMS_SET_WHEEL_CIRCUMFERENCE,
+    FTMS_SPIN_DOWN_CONTROL,
+    FTMS_SET_TARGETED_CADENCE,
+    FTMS_RESPONSE_CODE = 0x80
+};
+
+enum FtmsResultCode {
+    FTMS_SUCCESS = 0x01,
+    FTMS_NOT_SUPPORTED,
+    FTMS_INVALID_PARAMETER,
+    FTMS_OPERATION_FAILED,
+    FTMS_CONTROL_NOT_PERMITTED
+};
+
+class ftmsbike : public bike {
+    Q_OBJECT
+  public:
+    ftmsbike(bool noWriteResistance, bool noHeartService, int8_t bikeResistanceOffset, double bikeResistanceGain);
+    ~ftmsbike();
+    static bool parseFsIb50Resistance(const QByteArray &packet, resistance_t *resistance);
+    static bool fsIb50ResistanceGearDelta(resistance_t previousResistance, resistance_t currentResistance,
+                                           qint64 msecsSinceInclinationCommand,
+                                           qint64 msecsSinceInclinationMetricChange, resistance_t *delta);
+    static double applyFsIb50GearGain(resistance_t gearDelta, double gearsGain);
+    bool connected() override;
+
+    resistance_t pelotonToBikeResistance(int pelotonResistance) override;
+    resistance_t maxResistance() override { return max_resistance; }
+    resistance_t resistanceFromPowerRequest(uint16_t power) override;
+    void changePower(int32_t power) override;
+    double maxGears() override;
+    double minGears() override;
+    void enableManualResistancePowerAdjustment(resistance_t resistance);
+    static resistance_t normalizedResistanceForDevice(const QString &deviceName, double rawResistance);
+    static resistance_t rawResistanceForDevice(const QString &deviceName, resistance_t displayedResistance);
+
+    // Most FTMS bikes can use QZ's software ERG emulation, but FS-YK devices
+    // should stay on direct resistance control because it doesn't send the current resistance value and it conflicts
+    // with the PID HR method
+    bool ergModeSupportedAvailableBySoftware() override { return !FS_YK; }
+    bool inclinationAvailableBySoftware() override { return !resistance_lvl_mode; }
+
+  private:
+    struct WriteRequest {
+        QByteArray data;
+        QString info;
+        bool disable_log = false;
+        bool wait_for_response = false;
+        QLowEnergyService *service = nullptr;
+        QLowEnergyCharacteristic characteristic;
+        bool write_without_response = false;
+    };
+
+    bool writeCharacteristic(uint8_t *data, uint8_t data_len, const QString &info, bool disable_log = false,
+                             bool wait_for_response = false);
+    void writeCharacteristicZwiftPlay(uint8_t *data, uint8_t data_len, const QString &info, bool disable_log = false,
+                             bool wait_for_response = false);
+    bool enqueueWrite(QLowEnergyService *service, const QLowEnergyCharacteristic &characteristic, uint8_t *data,
+                      uint8_t data_len, const QString &info, bool disable_log, bool wait_for_response,
+                      bool write_without_response);
+    void processWriteQueue();
+    void completeCurrentWrite();
+    void zwiftPlayInit();
+    void startDiscover();
+    void setWheelDiameter(double diameter);
+    uint16_t watts() override;
+    void init();
+    void forceResistance(resistance_t requestResistance);
+    void forcePower(int16_t requestPower);
+    void forceInclination(double requestInclination);
+    void sendZwiftPlayInclination(double inclination);
+    uint16_t wattsFromResistance(double resistance);
+    bool isManualResistanceBike() const;
+
+    QTimer *refresh;
+    
+    // Gear modification constants
+    static constexpr int GEARS_SLOPE_MULTIPLIER = 50;
+
+    QList<QLowEnergyService *> gattCommunicationChannelService;
+    QLowEnergyCharacteristic gattWriteCharControlPointId;
+    QLowEnergyService *gattFTMSService = nullptr;
+
+    QLowEnergyCharacteristic zwiftPlayWriteChar;
+    QLowEnergyService *zwiftPlayService = nullptr;
+
+    // MOK Fitness bikes don't use the FTMS control point (0x2AD9) to change resistance,
+    // they need a raw command written to a proprietary characteristic (0xFFF2) instead.
+    QLowEnergyCharacteristic gattWriteCharMokFitnessId;
+    QLowEnergyService *gattMokFitnessService = nullptr;
+
+    uint8_t sec1Update = 0;
+    QByteArray lastPacket;
+    QByteArray lastPacketFromFTMS;
+    QDateTime lastRefreshCharacteristicChangedPower = QDateTime::currentDateTime();
+    QDateTime lastRefreshCharacteristicChanged2AD2 = QDateTime::currentDateTime();
+    QDateTime lastRefreshCharacteristicChanged2ACE = QDateTime::currentDateTime();
+    QDateTime lastDomyosResistanceCommand = QDateTime::currentDateTime().addSecs(-60);
+    QDateTime domyosResistanceRetryAfter = QDateTime::currentDateTime().addSecs(-60);
+    bool ftmsFrameReceived = false;
+    uint8_t firstStateChanged = 0;
+    int8_t bikeResistanceOffset = 4;
+    double bikeResistanceGain = 1.0;
+    double lastGearValue = -1;
+    int max_resistance = 100;
+
+    bool initDone = false;
+    bool initRequest = false;
+
+    bool noWriteResistance = false;
+    bool noHeartService = false;
+
+    bool powerForced = false;
+    resistance_t m_lastErgResistance = 0;
+    resistance_t m_pendingErgResistance = -1;
+    QDateTime m_pendingErgResistanceTime;
+    bool manualResistancePowerAdjustmentActive = false;
+    bool manualResistancePowerAdjustmentToastShown = false;
+    resistance_t manualResistanceTarget = 1;
+
+    bool resistance_lvl_mode = false;
+    bool resistance_received = false;
+    bool native_resistance_received = false;
+    QDateTime calculatedResistanceFallbackSince;
+    resistance_t lastFsIb50Resistance = -1;
+    QDateTime lastFsIb50InclinationCommand;
+    bool fsIb50PhysicalGearChangePending = false;
+
+    inclinationResistanceTable _inclinationResistanceTable;
+
+    // D500V2 workaround: track if we're awaiting start simulation command after request control
+    bool awaiting_start_simulation_after_request_control = false;
+    resistance_t lastDomyosRequestedResistance = -1;
+
+    bool DU30_bike = false;
+    bool ICSE = false;
+    bool DOMYOS = false;
+    bool D500V2 = false;
+    bool _3G_Cardio_RB = false;
+    bool SCH_190U = false;
+    bool SCH_290R = false;
+    bool D2RIDE = false;
+    bool WATTBIKE = false;
+    bool VFSPINBIKE = false;
+    bool SS2K = false;
+    bool DIRETO_XR = false;
+    bool INCONDI_S150I = false;
+    bool JFBK5_0 = false;
+    bool BIKE_ = false;
+    bool SMB1 = false;
+    bodytone::SafeErgController smb1SafeErg;
+    bool LYDSTO = false;
+    bool DMASUN = false;
+    bool SL010 = false;
+    bool REEBOK = false;
+    bool TITAN_7000 = false;
+    bool T2 = false;
+    bool FIT_BK = false;
+    bool YS_G1MPLUS = false;
+    bool EXPERT_SX9 = false;
+    bool PM5 = false;
+    bool THINK_X = false;
+    bool WLT8828 = false;
+    bool VANRYSEL_HT = false;
+    bool MAGNUS = false;
+    bool MRK_S26C = false;
+    bool MRK_S28 = false;
+    bool MRK_S36C = false;
+    bool HAMMER = false;
+    bool HS_5000L = false;
+    bool H9115 = false;
+    bool DRUMFIT = false;
+    bool YPBM = false;
+    bool SPORT01 = false;
+    bool FS_YK = false;
+    bool FS_IB50 = false;
+    bool FS_SB_RCR = false;
+    bool S18 = false;
+    bool ZIPRO_RAVE = false;
+    bool SPEEDRACEX = false;
+    bool USDC_D700 = false;
+    bool WLT_BK = false;
+    bool TOPUTURE_TEB5 = false;
+    bool SMARTBIKE_3DIGIT = false;
+    bool TX_500MB_IRON = false;
+    bool MOK_FITNESS = false;
+    bool TUNTURI_E50_168 = false;
+    bool SOLE_B94 = false;
+    bool VIFHTR = false;
+
+    uint8_t secondsToResetTimer = 5;
+
+    int16_t T2_lastGear = 0;
+
+    uint8_t battery_level = 0;
+
+    bool wattReceived = false;
+    bool gearInclinationSent = false;
+
+    QQueue<WriteRequest> writeQueue;
+    bool isWriting = false;
+    bool currentWriteWaitingForResponse = false;
+    QLowEnergyService *currentWriteService = nullptr;
+    QTimer *writeTimeoutTimer = nullptr;
+
+    uint16_t oldLastCrankEventTime = 0;
+    uint16_t oldCrankRevs = 0;
+    QDateTime lastGoodCadence = QDateTime::currentDateTime();
+
+#ifdef Q_OS_IOS
+    lockscreen *h = 0;
+#endif
+
+  Q_SIGNALS:
+    void disconnected();
+    void debug(QString string);
+
+  public slots:
+    void deviceDiscovered(const QBluetoothDeviceInfo &device);
+
+  private slots:
+
+    void characteristicChanged(const QLowEnergyCharacteristic &characteristic, const QByteArray &newValue);
+    void characteristicWritten(const QLowEnergyCharacteristic &characteristic, const QByteArray &newValue);
+    void descriptorWritten(const QLowEnergyDescriptor &descriptor, const QByteArray &newValue);
+    void characteristicRead(const QLowEnergyCharacteristic &characteristic, const QByteArray &newValue);
+    void descriptorRead(const QLowEnergyDescriptor &descriptor, const QByteArray &newValue);
+    void stateChanged(QLowEnergyService::ServiceState state);
+    void controllerStateChanged(QLowEnergyController::ControllerState state);
+
+    void serviceDiscovered(const QBluetoothUuid &gatt);
+    void serviceScanDone(void);
+    bool shouldUseCalculatedResistanceFallback(const QDateTime &now);
+    void update();
+    void error(QLowEnergyController::Error err);
+    void errorService(QLowEnergyService::ServiceError);
+    void ftmsCharacteristicChanged(const QLowEnergyCharacteristic &characteristic, const QByteArray &newValue);
+};
+
+#endif // FTMSBIKE_H
