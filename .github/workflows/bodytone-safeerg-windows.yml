@@ -1,0 +1,139 @@
+name: Bodytone SMB1 SafeERG v3 - Windows
+
+on:
+  push:
+    branches:
+      - bodytone-safeerg-v3-build
+
+permissions:
+  contents: read
+
+jobs:
+  windows-mingw-qt5:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    steps:
+      - name: Get SafeERG patch
+        uses: actions/checkout@v4
+      - name: Get QZ from verified upstream commit
+        uses: actions/checkout@v4
+        with:
+          repository: cagnulein/qdomyos-zwift
+          ref: 21ada401b96c628316774d6ce107410f8d707461
+          path: qz
+      - name: QZ SMTP dependency
+        uses: actions/checkout@v4
+        with:
+          repository: bluetiger9/SmtpClient-for-Qt
+          ref: 3fa4a0fe5797070339422cf18b5e9ed8dcb91f9c
+          path: qz/src/smtpclient
+      - name: QZ Google Test dependency
+        uses: actions/checkout@v4
+        with:
+          repository: google/googletest
+          ref: release-1.12.1
+          path: qz/tst/googletest
+      - name: Qt HttpServer dependency
+        uses: actions/checkout@v4
+        with:
+          repository: qt-labs/qthttpserver
+          path: qz/src/qthttpserver
+      - name: Apply isolated SafeERG patch and validate source
+        shell: pwsh
+        run: |
+          $dst = "qz/src/devices/ftmsbike"
+          $orig = Get-Content "$dst/ftmsbike.cpp" -Raw
+          if (-not $orig.Contains('SMB1 found - using software ERG via learned resistance table')) {
+            throw "Unexpected QZ revision; refusing to build."
+          }
+          Copy-Item bodytone-patch/ftmsbike.cpp "$dst/ftmsbike.cpp" -Force
+          Copy-Item bodytone-patch/ftmsbike.h "$dst/ftmsbike.h" -Force
+          Copy-Item bodytone-patch/bodytone_safe_erg.h "$dst/bodytone_safe_erg.h" -Force
+          $cpp = Get-Content "$dst/ftmsbike.cpp" -Raw
+          $hdr = Get-Content "$dst/ftmsbike.h" -Raw
+          if (-not $cpp.Contains('SMB1 SafeERG: blocked native FTMS power request') -or
+              -not $hdr.Contains('bodytone_safe_erg.h')) {
+            throw "SafeERG patch not properly installed"
+          }
+          Write-Host "SafeERG patch installed into pinned QZ source."
+      - name: MSYS2 MinGW toolchain
+        uses: msys2/setup-msys2@v2
+        with:
+          install: mingw-w64-x86_64-toolchain mingw-w64-x86_64-qt5-webview perl
+          msystem: mingw64
+          release: false
+      - name: Setup cmake
+        uses: jwlawson/actions-setup-cmake@v1.9
+        with:
+          cmake-version: '3.20.x'
+      - name: Install Qt5
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '5.15.2'
+          host: windows
+          modules: qtnetworkauth qtcharts
+          target: desktop
+          arch: win64_mingw81
+          dir: "${{ github.workspace }}/qt/"
+          install-deps: 'true'
+          cache: 'true'
+          cache-key-prefix: bodytone-qt5152-win
+      - name: Validate standalone SafeERG controller on Windows
+        shell: msys2 {0}
+        run: |
+          export PATH="/usr/bin:/mingw64/bin:$PATH"
+          g++ -std=c++11 -Wall -Wextra -Werror -pedantic bodytone-patch/test_controller.cpp -o safeerg-controller-test.exe
+          ./safeerg-controller-test.exe
+      - name: Copy Qt HttpServer third-party headers
+        shell: pwsh
+        working-directory: qz
+        run: |
+          Copy-Item qHttpServerBin/5.15.2/headers/* src/qthttpserver/src/3rdparty/http-parser/ -Force
+      - name: Build Qt HttpServer as official QZ CI
+        shell: msys2 {0}
+        working-directory: qz
+        run: |
+          export PATH="/usr/bin:/mingw64/bin:$PATH"
+          qt_dir="$(cygpath -u "$Qt5_Dir")"
+          qmake="$qt_dir/bin/qmake.exe"
+          "$qmake" -v
+          cd src/qthttpserver
+          "$qmake"
+          syncqt="$qt_dir/bin/syncqt.pl"
+          perl -0pi -e 's/my \$normalizePath_fixDrive = \(\$\^O eq "msys" \? 1 : 0\);/my \$normalizePath_fixDrive = (\$^O eq "msys" || \$^O eq "cygwin" ? 1 : 0);/' "$syncqt"
+          mingw32-make -j8
+          mingw32-make install
+          test -f "$qt_dir/bin/Qt5HttpServer.dll"
+      - name: Compile QZ SafeERG Windows EXE
+        shell: pwsh
+        working-directory: qz
+        run: |
+          lrelease src/qdomyos-zwift.pri
+          qmake
+          make -j8
+          if (!(Test-Path src/debug/qdomyos-zwift.exe)) { throw "Missing compiled QZ EXE" }
+      - name: Deploy Qt runtime alongside executable
+        shell: pwsh
+        working-directory: qz
+        run: |
+          New-Item -ItemType Directory -Force -Path src/debug/output | Out-Null
+          Copy-Item src/debug/qdomyos-zwift.exe src/debug/output/
+          Push-Location src/debug/output
+          windeployqt --qmldir ../../ qdomyos-zwift.exe
+          Copy-Item "C:/mingw64/bin/libwinpthread-1.dll" .
+          Copy-Item "C:/mingw64/bin/libgcc_s_seh-1.dll" .
+          Copy-Item "C:/mingw64/bin/libstdc++-6.dll" .
+          Copy-Item ../../../windows_openssl/*.* . -ErrorAction SilentlyContinue
+          Copy-Item ../../../qt-patches/windows/5.15.2/binary/mingw64/*.* . -ErrorAction SilentlyContinue
+          "BODYTONE SMB1 V3 SafeERG v3 EXPERIMENTAL" | Set-Content -Encoding UTF8 BUILD_INFO.txt
+          "QZ source: 21ada401b96c628316774d6ce107410f8d707461" | Add-Content BUILD_INFO.txt
+          "Requires on-bike verification; never run high-power FTP test before low-power checks." | Add-Content BUILD_INFO.txt
+          "This build changes only QZ and not Bodytone firmware." | Add-Content BUILD_INFO.txt
+          Pop-Location
+      - name: Upload experimental Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bodytone-SafeERG-v3-Windows11-UNTESTED
+          path: qz/src/debug/output/
+          if-no-files-found: error
+          retention-days: 14
