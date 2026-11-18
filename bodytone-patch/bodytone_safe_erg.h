@@ -95,7 +95,8 @@ public:
         if (std::fabs(error) <= tolerance) return {};
         if (error > 0.0) {
             if (cadence < 65.0 || cadenceDropping) return {};
-            const double step = std::min(kMaxUpStep, std::max(0.2, error / 200.0));
+            const double rawStep = std::max(0.2, error / 200.0);
+            const double step = rawStep < kMaxUpStep ? rawStep : kMaxUpStep;
             if (gradePercent_ >= kMaxGrade) return {};
             return sendClamped(gradePercent_ + step, nowMs, "measured-power-below-target");
         }
@@ -106,7 +107,7 @@ public:
     }
 private:
     Command sendClamped(double proposedGrade, std::int64_t nowMs, const char* reason) {
-        const double next = std::max(0.0, std::min(kMaxGrade, proposedGrade));
+        const double next = proposedGrade < 0.0 ? 0.0 : (proposedGrade > kMaxGrade ? kMaxGrade : proposedGrade);
         if (std::fabs(next - gradePercent_) < 0.0001) return {};
         gradePercent_ = next;
         lastCommandAt_ = nowMs;
