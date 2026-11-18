@@ -15,6 +15,7 @@ int main() {
   assert(c.gradePercent() <= bodytone::SafeErgController::kMaxGrade);
   cmd = c.tick(40, 0, true, 16000);
   assert(c.gradePercent() == 0.0);
+  c.cancel();
   c.setTarget(300, 20000);
   assert(c.tick(80, 100, true, 20000).send);
   assert(!c.tick(80, 100, true, 24000).send);
