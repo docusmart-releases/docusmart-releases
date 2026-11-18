@@ -110,7 +110,9 @@ jobs:
         run: |
           lrelease src/qdomyos-zwift.pri
           qmake
-          make -j8
+          # QZ root 'make' also builds unrelated tst/ in Release mode and fails
+          # without src/release/libqdomyos-zwift.a. Build application only.
+          make -C src -j8
           if (!(Test-Path src/debug/qdomyos-zwift.exe)) { throw "Missing compiled QZ EXE" }
       - name: Deploy Qt runtime alongside executable
         shell: pwsh
