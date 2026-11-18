@@ -110,9 +110,12 @@ jobs:
         run: |
           lrelease src/qdomyos-zwift.pri
           qmake
-          # QZ root 'make' also builds unrelated tst/ in Release mode and fails
-          # without src/release/libqdomyos-zwift.a. Build application only.
-          make -C src -j8
+          # QZ root Makefile defines separate ordered application targets.
+          # Only build QZ library and EXE, skipping tst/ Release link target.
+          make -j8 sub-src-qdomyos-zwift-lib-pro-make_first-ordered
+          if ($LASTEXITCODE -ne 0) { throw "QZ library build failed" }
+          make -j8 sub-src-qdomyos-zwift-pro-make_first-ordered
+          if ($LASTEXITCODE -ne 0) { throw "QZ EXE build failed" }
           if (!(Test-Path src/debug/qdomyos-zwift.exe)) { throw "Missing compiled QZ EXE" }
       - name: Deploy Qt runtime alongside executable
         shell: pwsh
